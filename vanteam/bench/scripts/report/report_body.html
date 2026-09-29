@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Замеры v8unpack-accel 2.0.0</title>
+<meta name="description" content="Отчёт о замерах и приёмке обёрток v8unpack-accel 2.0.0: методика, парный замер с чередованием, вклад каждого ускорения, распаковка УТ 11.5 целиком, сверки результата.">
+/*STYLE*/
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <p class="kicker">Инструменты 1С · отчёт о замерах и приёмке · v8unpack-accel 2.0.0 · 29.09.2026</p>
+    <h1>Замеры и приёмка v8unpack-accel 2.0.0</h1>
+  </div>
+  <button class="theme-btn" id="themeBtn" type="button" aria-label="Переключить тему">Тема</button>
+</header>
+
+<p class="lead">Что и как измерено при выпуске 2.0.0. Две версии сравнивались на одних и тех же файлах, на одной машине, с чередованием прогонов. Результат распаковки сверялся побайтно с 1.0.0, со штатным v8unpack и с эталонной распаковкой УТ 11.5.</p>
+
+<p class="meta">Статья о том, как устроены ускорения, — <a href="Оптимизация_распаковки_v8unpack.html">«Ускорение распаковки 1С через v8unpack»</a>. Скрипты замеров — <code>bench/scripts/</code>, сырые результаты — <code>releases/v8unpack-accel/v2.0.0/evidence/</code>.</p>
+
+<!--TILES-->
+
+<nav class="toc" aria-label="Содержание">
+  <b>Содержание</b>
+  <ol>
+    <li><a href="#method">Методика</a></li>
+    <li><a href="#accept">Приёмка: результат тот же</a></li>
+    <li><a href="#cfe">Контрольный .cfe: 1.0.0 против 2.0.0</a></li>
+    <li><a href="#ablation">Вклад каждого ускорения</a></li>
+    <li><a href="#ut">УТ 11.5 целиком</a></li>
+    <li><a href="#parse">Разбор: тяжёлые формы и выборки</a></li>
+    <li><a href="#json">Запись JSON</a></li>
+    <li><a href="#av">Антивирус и время ядра</a></li>
+    <li><a href="#build">Сборка</a></li>
+    <li><a href="#gaps">Что не проверено</a></li>
+    <li><a href="#repro">Как воспроизвести</a></li>
+  </ol>
+</nav>
+
+<h2 id="method">1. Методика</h2>
+<div class="table-wrap"><table>
+  <tbody>
+    <tr><th>Машина</th><td>Windows 11, 4 физических / 8 логических ядер, ОЗУ 35 ГиБ; Python 3.11.8, v8unpack 1.2.13, psutil 7.0.0</td></tr>
+    <tr><th>Фон</th><td>рабочая машина; чужие процессы (редактор, сборки, проверки кода) занимали 60–100% CPU всё время замеров. Поэтому время по часам (wall) недостоверно, сравнение — по CPU</td></tr>
+    <tr><th>Метрика</th><td>CPU процесса распаковки: user + kernel (psutil), по этапам — через обёртки вокруг четырёх проходов <code>extract</code>. Все варианты серийные, один процесс, приоритет BelowNormal</td></tr>
+    <tr><th>Порядок</th><td>парный замер с чередованием: варианты по очереди, в нечётных раундах прямой порядок, в чётных обратный; каждый прогон — отдельный процесс; медиана по раундам</td></tr>
+    <tr><th>Результат</th><td>манифест каждого прогона: sha256 всех файлов и список каталогов; <code>tree_sha</code> — хеш отсортированного манифеста. Одинаковый <code>tree_sha</code> — побайтно одинаковое дерево</td></tr>
+    <tr><th>Антивирус</th><td>проверка файлов антивирусом в реальном времени на машине замеров была выключена; контрольный замер 28.09 шёл с включённой</td></tr>
+    <tr><th>Файлы</th><td><code>ComplexBitrix24_RU_UNF.cfe</code> — расширение 3 МБ → 1483 файла, 598 каталогов, 30 946 055 байт; <code>1Cv8-ут-11.5.27.93-.cf</code> — УТ 11.5, 883 МБ → 68 177 файлов; <code>decode_stage_1</code> двух распаковок УНФ 3.0.14 для сверки разбора</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="accept">2. Приёмка: результат тот же</h2>
+<p>Критерии приёмки заданы заранее, до замеров: сверка разбора на 400 файлах без расхождений, побайтно то же дерево на полной распаковке, замер парами не меньше трёх раундов.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Проверка</th><th>Объём</th><th>Итог</th></tr></thead>
+  <tbody>
+    <tr><td>Разбор 2.0.0 против исходного <code>JsonContainerDecoder</code> (<code>v8unpack_fastparse_check.py</code>)</td><td>400 случайных файлов <code>decode_stage_1</code> УНФ</td><td><span class="pill">0 расхождений</span> 394 разобрано, 6 исключений совпали</td></tr>
+    <tr><td>То же на тяжёлых формах</td><td>3 формы 1,5–2 МБ</td><td><span class="pill">совпали</span></td></tr>
+    <tr><td>Разбор через <code>json.loads</code> против цепочки 1.0.0 + прототипов</td><td>11 130 файлов двух распаковок УНФ, 440 МБ</td><td><span class="pill">0 расхождений</span> запасной путь — 193 файла (1,7%)</td></tr>
+    <tr><td>Запись JSON против <code>json.dumps</code></td><td>4060 JSON-файлов УТ 11.5, 216 МБ</td><td><span class="pill">0 расхождений</span></td></tr>
+    <!--ACCEPT_CFE-->
+    <tr><td>УТ 11.5.27.93 целиком, 2.0.0 против эталонной распаковки 1.0.0 (<code>compare_tree.py</code>)</td><td>68 177 файлов, 24 075 каталогов, 3,46 ГБ</td><td><span class="pill">побайтно равно</span> кроме времени в записях <code>dummy.zip</code>, содержимое архива то же</td></tr>
+    <tr><td>Патчи 2.0.0 поверх 1.0.0 (<code>verify_release.py --replay</code>)</td><td>9 патчей, 12 файлов</td><td><span class="pill">побайтно равно</span> <code>tools/</code></td></tr>
+  </tbody>
+</table></div>
+<p><code>dummy.zip</code> — второй контейнер <code>.cf</code>, который v8unpack при каждой распаковке пересобирает через <code>shutil.make_archive</code>. В записях архива стоит время распаковки, поэтому его хеш разный при любой версии. Сверка сравнивает имена, CRC и байты записей — они совпали.</p>
+
+<h2 id="cfe">3. Контрольный .cfe: 1.0.0 против 2.0.0</h2>
+<div id="cfeBody"><!--CFE--></div>
+
+<h2 id="ablation">4. Вклад каждого ускорения</h2>
+<div id="ablBody"><!--ABL--></div>
+
+<h2 id="ut">5. УТ 11.5 целиком</h2>
+<p>Полная распаковка <code>1Cv8-ут-11.5.27.93-.cf</code> (883 МБ). 1.0.0 — прогон 28.09 по журналу <code>ut_err.log</code>. Парный повтор 1.0.0 не делался: версия копирует результат, и в пике на D: не хватило бы места рядом с тремя временными каталогами. Условия прогонов разные, поэтому это ориентир, а не контрольный опыт.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Этап (по часам)</th><th class="num">1.0.0, 28.09</th><th class="num">2.0.0, 29.09</th><th class="num">2.0.0, CPU</th></tr></thead>
+  <tbody>
+    <tr><td>Распаковка бинарника</td><td class="num">0:35</td><td class="num">1:49</td><td class="num">46 с</td></tr>
+    <tr><td>Распаковка вложенных контейнеров</td><td class="num">6:23</td><td class="num">1:35</td><td class="num">70 с</td></tr>
+    <tr><td>Разбор вложенных объектов</td><td class="num">10:27</td><td class="num">4:31</td><td class="num">205 с</td></tr>
+    <tr><td>Организатор («Организуем код»)</td><td class="num">29:01</td><td class="num">0:31</td><td class="num">28 с</td></tr>
+    <tr><td><b>Всего</b></td><td class="num"><b>46:30</b></td><td class="num"><b>8:25</b></td><td class="num"><b>365 с</b></td></tr>
+  </tbody>
+</table></div>
+<p class="caption">2.0.0: user 171 с, kernel 194 с; пик памяти 947 МБ. Код первого этапа в 2.0.0 не менялся. Он медленнее, вероятно, из-за фона: параллельно шла сверка тяжёлых форм исходным разборщиком (537 с CPU) и чужие процессы.</p>
+<p>Главный выигрыш — организатор. В 1.0.0 он обходил 68 тыс. файлов <code>decode_stage_3</code>, копировал каждый и заново писал модули и формы. В 2.0.0 каталог переносится одним переименованием, модули и формы без областей <code>include</code> не перезаписываются.</p>
+
+<h2 id="parse">6. Разбор: тяжёлые формы и выборки</h2>
+<p>CPU разбора одного файла (<code>brace_file_read</code>), лучший из трёх прогонов. Исходный разборщик — один прогон, <code>v8unpack_fastparse_check.py</code>.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Форма УНФ</th><th class="num">Размер</th><th class="num">исходный v8unpack</th><th class="num">1.0.0</th><th class="num">2.0.0</th></tr></thead>
+  <tbody>
+    <tr><td><code>be7b6111</code></td><td class="num">2018 КБ</td><td class="num">537,1 с</td><td class="num">0,531 с</td><td class="num">0,062 с</td></tr>
+    <tr><td><code>c7d3fbee</code></td><td class="num">1954 КБ</td><td class="num">12,2 с</td><td class="num">0,656 с</td><td class="num">0,141 с</td></tr>
+    <tr><td><code>303f4ede</code></td><td class="num">1495 КБ</td><td class="num">10,2 с</td><td class="num">0,219 с</td><td class="num">0,078 с</td></tr>
+  </tbody>
+</table></div>
+<p>Цифра «385 с → 0,34 с» из гайда 1.2.0 была временем по часам на другой нагрузке. Перемер по CPU: 537 с → 0,53 с (1.0.0) → 0,06 с (2.0.0), результат во всех трёх случаях тот же.</p>
+<p>Разбор через <code>json.loads</code> на выборках <code>decode_stage_1</code> (эталон — цепочка 1.0.0 с прототипами 2 и 3):</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Выборка</th><th class="num">Файлов</th><th class="num">CPU эталон</th><th class="num">CPU 2.0.0</th><th class="num">Ускорение</th></tr></thead>
+  <tbody>
+    <tr><td>УНФ, распаковка 1: 30 крупнейших + 3000 случайных</td><td class="num">2955, 79 МБ</td><td class="num">11,06 с</td><td class="num">3,91 с</td><td class="num">2,8×</td></tr>
+    <tr><td>УНФ, распаковка 2: 100 крупнейших + 8000 случайных</td><td class="num">7924, 361 МБ</td><td class="num">135,9 с</td><td class="num">24,6 с</td><td class="num">5,5×</td></tr>
+    <tr><td>— из выборки 1: формы с base64</td><td class="num">450</td><td class="num">6,00 с</td><td class="num">2,34 с</td><td class="num">2,6×</td></tr>
+    <tr><td>— из выборки 1: обычные скобочные файлы</td><td class="num">1757</td><td class="num">1,62 с</td><td class="num">1,16 с</td><td class="num">1,4×</td></tr>
+    <tr><td>— из выборки 1: текстовые файлы</td><td class="num">628</td><td class="num">2,45 с</td><td class="num">0,27 с</td><td class="num">9,2×</td></tr>
+  </tbody>
+</table></div>
+<p class="caption">Разбивка по видам снята до того, как экранирование стало условным. После этого весь разбор выборки 1 ускорился с 1,6× до 2,8×.</p>
+
+<h2 id="json">7. Запись JSON</h2>
+<p>4060 JSON-файлов выгрузки УТ 11.5 (60 крупнейших + 4000 случайных, 216 МБ), лучший из трёх прогонов.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Способ</th><th class="num">Только строка</th><th class="num">Строка + запись в файл</th></tr></thead>
+  <tbody>
+    <tr><td><code>json.dumps</code> / <code>json.dump(indent=2, ensure_ascii=False)</code> — штатно</td><td class="num">11,36 с</td><td class="num">19,89 с</td></tr>
+    <tr><td>свой сериализатор (<code>v8unpack_jsonwrite.dumps</code>) + одна запись</td><td class="num">4,22 с</td><td class="num">7,62 с</td></tr>
+  </tbody>
+</table></div>
+<p>Строки совпали со штатными во всех 4060 случаях. Прототип 28.09 (<code>json.dumps</code> одной записью) давал только −13%: основное время уходило не на запись, а на кодирование на Python.</p>
+
+<h2 id="av">8. Антивирус и время ядра</h2>
+<p>Около половины CPU распаковки — время ядра Windows. В отчёте 28.09 его приписывали проверке антивирусом. Проверка 29.09 это не подтвердила:</p>
+<ul>
+  <li><b>Защита в реальном времени была выключена</b>, а доля ядра у 1.0.0 осталась прежней — 41–46% против 43–47% при включённой защите.</li>
+  <li><b>Исключённая и обычная папка на одном диске дали одинаковый результат.</b> По 3 раунда: 1.0.0 — 26,45 и 26,72 с CPU, прототип 2.0.0 (все ускорения, кроме пропуска перезаписи) — 9,19 и 8,97 с. Разница в пределах шума.</li>
+  <li>Процесс антивируса MsMpEng за прогон CPU не набирает.</li>
+</ul>
+<p>Проверку файлов антивирус делает в своём процессе, а распаковка её только ждёт. Это видно по времени по часам и CPU антивируса, а не по CPU распаковки. Время ядра — сами открытия, записи и закрытия файлов, и 2.0.0 снижает его только тем, что делает этих операций меньше. Исключения антивируса для temp и результата полезны, когда защита в реальном времени включена: они снимают ожидание проверки файлов.</p>
+
+<h2 id="build">9. Сборка</h2>
+<p>Сборка <code>.cfe</code> из распакованного дерева (<code>v8unpack.build</code>), 3 раунда: CPU 12,16 → 10,84 с (−11%) только от записи JSON и кэша каталогов; этап «Собираем код» −27%. Побайтно сверить собранный файл нельзя: v8unpack пишет в файл <code>versions</code> новые <code>uuid4()</code> при каждой сборке, размер <code>.cfe</code> от прогона к прогону плавает на десятки байт. Размер куска zlib (512 Б против 1 МБ) не меняет ни байты, ни CPU заметно.</p>
+<p>Под профилировщиком cProfile сборка показывала 24% собственного времени в <code>OrganizerCode.pack_file</code>. Это артефакт: в Python 3.11 под профилировщиком строка не расширяется на месте, и склейка <code>s += ...</code> становится квадратичной. 80 тыс. склеек — 1,4 с без профилировщика и 80 с под ним. Без профилировщика тот же цикл на всех 287 модулях идёт 0,28 с.</p>
+
+<h2 id="gaps">10. Что не проверено</h2>
+<ul>
+  <li><b>Свободная машина.</b> Все замеры шли на фоне 60–100% чужой нагрузки. CPU от этого тоже плывёт: 1.0.0 на одном и том же файле — 17,8–28,6 с в разных сериях. Выводы делаются по медианам внутри одной серии с чередованием.</li>
+  <li><b>УТ 11.5 на 1.0.0 заново.</b> «Было» — журнал 28.09, не парный прогон.</li>
+  <li><b>Ограниченный параллелизм.</b> Не проверялся: на загруженной машине он не даёт выигрыша (замер 28.09: +24% CPU при 4 процессах).</li>
+  <li><b>Антивирус.</b> Эффект исключений по времени не измерен: защита в реальном времени выключена.</li>
+  <li><b>v8unpack 1.2.6.</b> 2.0.0 проверена только на 1.2.13.</li>
+</ul>
+
+<h2 id="repro">11. Как воспроизвести</h2>
+<pre><code>rem сверка разбора с исходным v8unpack
+python tools\v8unpack_fastparse_check.py "&lt;TEMP&gt;\tmpXXXX\decode_stage_1" 400
+
+rem парный замер с чередованием: 1.0.0, 2.0.0 и 2.0.0 без каждого ускорения
+python bench\scripts\bench_pair.py &lt;файл.cfe&gt; &lt;рабочий_каталог&gt; 5 summary.json ^
+    v1.0.0=releases\v8unpack-accel\v1.0.0\tools v2.0.0=tools ^
+    без_fastbrace=tools:fastbrace без_inplace=tools:inplace без_jsonwrite=tools:jsonwrite ^
+    без_io=tools:io без_accum=tools:accum
+
+rem полная распаковка и сверка с эталонным деревом
+python bench\scripts\run_variant.py tools &lt;файл.cf&gt; &lt;out&gt; &lt;temp&gt; result.json
+python bench\scripts\compare_tree.py result.json &lt;эталонный_каталог&gt; compare.json
+
+rem поставки: хеши, патчи поверх 1.0.0, рабочая копия
+python releases\v8unpack-accel\verify_release.py --replay --working</code></pre>
+
+<footer>Данные: <code>releases/v8unpack-accel/v2.0.0/evidence/</code> — итоги прогонов, сверки, журналы проверок. Скрипты замеров и сверки — <code>bench/scripts/</code>. Статья и отчёт распространяются по лицензии CC BY 4.0.</footer>
+
+</div>
+
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+/*SCRIPT*/
+</script>
+</body>
+</html>
