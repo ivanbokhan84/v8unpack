@@ -1,0 +1,128 @@
+"""
+Организатор v8unpack 1.2.6-1.2.13 без копирования (OrganizerFile.unpack при index=None и descent=None).
+
+Источник: unpack и unpack_code_file — переписанные OrganizerFile.unpack и OrganizerFile.unpack_code_file
+(saby-integration/v8unpack, MIT, Copyright (c) 2015 infactum).
+
+Штатно четвёртый проход обходит decode_stage_3 и строит дерево результата заново: модули .bsl
+раскладывает по областям и пишет, элементы форм .elem.json читает и пишет, всё остальное копирует
+shutil.copy. Без index и descent дерево результата повторяет decode_stage_3 один в один, поэтому:
+
+  1. decode_stage_3 переименовывается в каталог результата (os.replace, тот же том — мгновенно);
+  2. на месте обрабатываются только .bsl и .elem.json, обход — os.scandir без stat на каждый файл;
+  3. файл, который организатор записал бы байт в байт тем же, не перезаписывается:
+     .bsl — результат сравнивается с исходными байтами; .elem.json без областей include_/includr_
+     организатор переписывает тем же json_write из тех же данных, поэтому не трогается совсем.
+
+Если каталоги на разных томах, переименование не удалось или задан index/descent — штатный путь
+с копированием. v8unpack_resume.py не ломается: он заново строит decode_stage_3 из decode_stage_1.
+"""
+import io
+import os
+import shutil
+from datetime import datetime
+
+from v8unpack import helper
+from v8unpack.ext_exception import ExtException
+from v8unpack.index import get_dest_path
+from v8unpack.organizer_code import OrganizerCode
+from v8unpack.organizer_file import OrganizerFile
+from v8unpack.organizer_form_elem import OrganizerFormElem
+
+import v8unpack_accum
+import v8unpack_io
+
+_orig_unpack = OrganizerFile.unpack.__func__
+_NEWLINE = os.linesep
+stats = {'inplace': 0, 'copy': 0, 'bsl_skipped': 0, 'bsl_written': 0, 'elem_skipped': 0, 'elem_written': 0}
+
+
+def _read_text(raw):
+    """Байты -> текст так же, как open(..., 'r', encoding='utf-8-sig'): BOM долой, переводы строк -> '\\n'."""
+    text = raw.decode('utf-8-sig')
+    if '\r' in text:
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+    return text
+
+
+def unpack_code_file(params):
+    """OrganizerFile.unpack_code_file на месте: пропуск записи, если корневой модуль не изменился."""
+    src_dir, path, file_name, dest_dir, index, descent = params
+    full_path = os.path.join(src_dir, path, file_name)
+    try:
+        with open(full_path, 'rb') as file:
+            raw = file.read()
+        code_areas = v8unpack_accum.split_code_areas(OrganizerCode, io.StringIO(_read_text(raw), newline='\n'),
+                                                     file_name)
+        for elem, _file in code_areas.items():
+            if elem == 'root':
+                _file['path'], _file['file_name'] = get_dest_path(dest_dir, path, file_name, index, descent)
+            else:
+                if _file['area_type'] == 'includr':
+                    continue
+                _file['path'], _file['file_name'] = OrganizerCode.parse_include_path(
+                    elem, path, file_name, None, descent)
+            dest_path = os.path.abspath(os.path.join(dest_dir, _file['path']))
+            target = os.path.join(dest_path, _file['file_name'])
+            if os.path.normcase(target) == os.path.normcase(os.path.abspath(full_path)) \
+                    and _file['data'].replace('\n', _NEWLINE).encode('utf-8') == raw:
+                stats['bsl_skipped'] += 1
+                continue
+            helper.txt_write(_file['data'], dest_path, _file['file_name'])
+            stats['bsl_written'] += 1
+    except Exception as err:
+        raise ExtException(parent=err, dump={"filename": full_path}, action='unpack_code_file')
+
+
+def unpack_form_elem(params):
+    """OrganizerFormElem.unpack на месте: без областей include файл остаётся как есть."""
+    src_dir, path, file_name, dest_dir, index, descent = params
+    with open(os.path.join(src_dir, path, file_name), 'r', encoding='utf-8') as file:
+        text = file.read()
+    # без областей результат — тот же json_write тех же данных; нет "tree" — пусть штатный путь упадёт как раньше
+    if 'include_' not in text and 'includr_' not in text and '"tree":' in text:
+        stats['elem_skipped'] += 1
+        return
+    OrganizerFormElem.unpack(params)
+    stats['elem_written'] += 1
+
+
+def unpack(cls, src_dir, dest_dir, *, pool=None, index=None, descent=None):
+    if index or descent is not None:
+        return _orig_unpack(cls, src_dir, dest_dir, pool=pool, index=index, descent=descent)
+    begin = datetime.now()
+    dest_dir = os.path.abspath(dest_dir)
+    v8unpack_io.forget_dirs()
+    shutil.rmtree(dest_dir, ignore_errors=True)
+    try:
+        os.replace(src_dir, dest_dir)
+    except OSError as err:  # другой том или блокировка: штатный путь с копированием
+        print(f'{"Организуем код":30}: перенос не удался ({err}), копируем', flush=True)
+        stats['copy'] += 1
+        helper.makedirs(dest_dir, exist_ok=True)
+        return _orig_unpack(cls, src_dir, dest_dir, pool=pool, index=index, descent=descent)
+    stats['inplace'] += 1
+    print(f'{"Организуем код (на месте)":30}', flush=True)
+    tasks_code_file = []
+    tasks_form_elem = []
+    stack = ['']
+    while stack:
+        path = stack.pop()
+        with os.scandir(os.path.join(dest_dir, path)) as entries:
+            for entry in entries:
+                if entry.is_dir():
+                    stack.append(os.path.join(path, entry.name))
+                elif entry.name.endswith('.bsl'):
+                    tasks_code_file.append((dest_dir, path, entry.name, dest_dir, index, descent))
+                elif entry.name.endswith('.elem.json'):
+                    tasks_form_elem.append((dest_dir, path, entry.name, dest_dir, index, descent))
+    helper.run_in_pool(unpack_code_file, tasks_code_file, pool=pool, title=f'{"Раскладываем код по файлам":30}')
+    helper.run_in_pool(unpack_form_elem, tasks_form_elem, pool=pool, title=f'{"Раскладываем элементы форм":30}')
+    print(f'{"Организуем код - готово":30}: {datetime.now() - begin}', flush=True)
+
+
+def apply():
+    if getattr(OrganizerFile, "_inplace", False):
+        return
+    OrganizerFile.unpack = classmethod(unpack)
+    OrganizerFile._inplace = True

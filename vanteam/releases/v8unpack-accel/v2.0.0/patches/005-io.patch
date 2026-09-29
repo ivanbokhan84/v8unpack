@@ -1,0 +1,132 @@
+diff --git b/tools/v8unpack_io.py b/tools/v8unpack_io.py
+new file mode 100644
+index 0000000..e6aec0e
+--- /dev/null
++++ b/tools/v8unpack_io.py
+@@ -0,0 +1,126 @@
++"""
++Меньше файловых операций при распаковке v8unpack 1.2.6-1.2.13.
++
++Источник: decompress_file_and_extract и Container.extract_file — изменённые копии функций
++container_reader и container (saby-integration/v8unpack, MIT, Copyright (c) 2015 infactum).
++
++1. Вложенные контейнеры распаковываются из памяти. Штатно вложенный контейнер пишется на диск,
++   переименовывается в .temp/.tmp, читается заново и удаляется: четыре файловые операции на объект,
++   а os.rename сразу после записи — источник WinError 32 на крупных .cf. Цикл распаковки и условие
++   остановки те же, что в оригинале; обычные файлы пишутся потоком, как раньше. Верхний уровень .cf
++   (deflate=False, recursive=False) не трогается.
++2. helper.makedirs запоминает созданные каталоги: каждый json_write вызывает os.makedirs(exist_ok=True),
++   а это три системных вызова. Кэш сбрасывается в helper.clear_dir — единственном месте, где v8unpack
++   удаляет каталоги до конца распаковки.
++"""
++import io
++import os
++import shutil
++import time
++import zlib
++
++import v8unpack.container as container_module
++from v8unpack import container_reader, helper
++from v8unpack.container import Container
++from v8unpack.ext_exception import ExtException
++
++_MAGIC = b'\xFF\xFF\xFF\x7F'
++_known_dirs = set()
++
++
++def decompress_file_and_extract(params):
++    src_folder, filename, dest_folder = params
++    src_path = os.path.join(src_folder, filename)
++    dest_path = os.path.join(dest_folder, filename)
++    decompressor = zlib.decompressobj(-15)  # wbits = -15: у архивированных файлов нет заголовков
++    is_container = None
++    chunks = []
++    dest = None
++    try:
++        try:
++            with open(src_path, 'rb') as src:
++                while True:
++                    buf = decompressor.unconsumed_tail
++                    if buf == b'':
++                        buf = src.read(8192)
++                        if buf == b'':
++                            break
++                    data = decompressor.decompress(buf)
++                    if is_container is None:
++                        is_container = data[0:4] == _MAGIC
++                        if not is_container:
++                            dest = open(dest_path, 'wb')
++                    if data == b'':
++                        break
++                    if is_container:
++                        chunks.append(data)
++                    else:
++                        dest.write(data)
++        finally:
++            if dest is not None:
++                dest.close()
++        if is_container:
++            container = Container()
++            container.read(io.BytesIO(b''.join(chunks)))
++            container.extract(dest_path, recursive=True)
++        elif is_container is None:
++            open(dest_path, 'wb').close()  # пустой источник: оригинал оставляет пустой файл
++    except Exception as err:
++        raise ExtException(parent=err, message="Ошибка при разархифировании контейнера",
++                           detail=f'{filename} ({err})')
++
++
++_orig_extract_file = Container.extract_file
++
++
++def extract_file(filename, file_obj, path, deflate=False, recursive=False):
++    if not recursive:  # верхний уровень .cf: потоковая запись как в оригинале
++        return _orig_extract_file(filename, file_obj, path, deflate, recursive)
++    file_path = os.path.join(path, filename)
++    if deflate:
++        decompressor = zlib.decompressobj(-15)
++        data = b''.join([decompressor.decompress(chunk) for chunk in file_obj.data])
++    else:
++        data = b''.join(file_obj.data)
++    if data[0:4] == _MAGIC:
++        nested = Container()
++        nested.read(io.BytesIO(data))
++        nested.extract(file_path, recursive=True)
++        return
++    with open(file_path, 'wb') as f:
++        f.write(data)
++
++
++def makedirs(name, exist_ok=False):
++    if exist_ok and name in _known_dirs:
++        return
++    for i in range(3):
++        try:
++            os.makedirs(name, exist_ok=exist_ok)
++            _known_dirs.add(name)
++            return
++        except PermissionError:
++            time.sleep(0.5)
++    raise PermissionError(name)
++
++
++def clear_dir(path):
++    _known_dirs.clear()
++    shutil.rmtree(path, ignore_errors=True)
++    makedirs(path, exist_ok=True)
++
++
++def forget_dirs():
++    """Сбросить кэш каталогов: после переноса или удаления каталогов в обход clear_dir."""
++    _known_dirs.clear()
++
++
++def apply():
++    if getattr(helper, "_fast_io", False):
++        return
++    container_reader.decompress_file_and_extract = decompress_file_and_extract
++    Container.extract_file = staticmethod(extract_file)
++    helper.makedirs = makedirs
++    helper.clear_dir = clear_dir
++    container_module.clear_dir = clear_dir  # container.py импортирует clear_dir по имени
++    helper._fast_io = True

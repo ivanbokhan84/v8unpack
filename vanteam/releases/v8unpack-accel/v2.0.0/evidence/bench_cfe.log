@@ -1,0 +1,44 @@
+раунд 1 v1.0.0: CPU 25.22 с (user 14.28, kernel 10.94), wall 85.6 с, пик 40 МБ, дерево 9539208d0b4b
+раунд 1 v2.0.0: CPU 6.77 с (user 3.45, kernel 3.31), wall 19.6 с, пик 43 МБ, дерево 9539208d0b4b
+раунд 1 без_fastbrace: CPU 8.7 с (user 5.22, kernel 3.48), wall 41.9 с, пик 43 МБ, дерево 9539208d0b4b
+раунд 1 без_inplace: CPU 10.66 с (user 4.66, kernel 6.0), wall 101.7 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 1 без_jsonwrite: CPU 7.66 с (user 4.08, kernel 3.58), wall 18.1 с, пик 42 МБ, дерево 9539208d0b4b
+раунд 1 без_io: CPU 7.77 с (user 3.86, kernel 3.91), wall 34.8 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 1 без_accum: CPU 5.75 с (user 2.55, kernel 3.2), wall 7.8 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 2 без_accum: CPU 6.86 с (user 3.08, kernel 3.78), wall 14.1 с, пик 45 МБ, дерево 9539208d0b4b
+раунд 2 без_io: CPU 6.92 с (user 2.75, kernel 4.17), wall 9.2 с, пик 43 МБ, дерево 9539208d0b4b
+раунд 2 без_jsonwrite: CPU 6.83 с (user 3.58, kernel 3.25), wall 8.4 с, пик 42 МБ, дерево 9539208d0b4b
+раунд 2 без_inplace: CPU 8.48 с (user 3.92, kernel 4.56), wall 11.7 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 2 без_fastbrace: CPU 8.02 с (user 4.45, kernel 3.56), wall 11.5 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 2 v2.0.0: CPU 6.62 с (user 2.91, kernel 3.72), wall 11.9 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 2 v1.0.0: CPU 20.06 с (user 11.0, kernel 9.06), wall 37.5 с, пик 41 МБ, дерево 9539208d0b4b
+раунд 3 v1.0.0: CPU 20.7 с (user 11.78, kernel 8.92), wall 30.6 с, пик 41 МБ, дерево 9539208d0b4b
+раунд 3 v2.0.0: CPU 5.98 с (user 2.7, kernel 3.28), wall 6.9 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 3 без_fastbrace: CPU 6.92 с (user 3.78, kernel 3.14), wall 8.6 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 3 без_inplace: CPU 9.41 с (user 4.2, kernel 5.2), wall 19.3 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 3 без_jsonwrite: CPU 7.56 с (user 3.89, kernel 3.67), wall 10.1 с, пик 42 МБ, дерево 9539208d0b4b
+раунд 3 без_io: CPU 6.58 с (user 2.95, kernel 3.62), wall 10.2 с, пик 43 МБ, дерево 9539208d0b4b
+раунд 3 без_accum: CPU 5.78 с (user 3.08, kernel 2.7), wall 8.2 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 4 без_accum: CPU 6.64 с (user 3.14, kernel 3.5), wall 14.9 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 4 без_io: CPU 6.97 с (user 3.36, kernel 3.61), wall 12.7 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 4 без_jsonwrite: CPU 7.5 с (user 3.75, kernel 3.75), wall 10.6 с, пик 42 МБ, дерево 9539208d0b4b
+раунд 4 без_inplace: CPU 9.12 с (user 3.78, kernel 5.34), wall 12.2 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 4 без_fastbrace: CPU 9.17 с (user 5.0, kernel 4.17), wall 36.2 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 4 v2.0.0: CPU 5.48 с (user 2.61, kernel 2.88), wall 6.8 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 4 v1.0.0: CPU 20.98 с (user 12.25, kernel 8.73), wall 32.7 с, пик 41 МБ, дерево 9539208d0b4b
+раунд 5 v1.0.0: CPU 21.31 с (user 12.48, kernel 8.83), wall 87.3 с, пик 40 МБ, дерево 9539208d0b4b
+раунд 5 v2.0.0: CPU 7.5 с (user 3.41, kernel 4.09), wall 25.1 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 5 без_fastbrace: CPU 9.59 с (user 4.81, kernel 4.78), wall 21.6 с, пик 43 МБ, дерево 9539208d0b4b
+раунд 5 без_inplace: CPU 10.75 с (user 4.34, kernel 6.41), wall 23.8 с, пик 45 МБ, дерево 9539208d0b4b
+раунд 5 без_jsonwrite: CPU 8.08 с (user 4.03, kernel 4.05), wall 16.5 с, пик 41 МБ, дерево 9539208d0b4b
+раунд 5 без_io: CPU 8.67 с (user 3.97, kernel 4.7), wall 80.9 с, пик 44 МБ, дерево 9539208d0b4b
+раунд 5 без_accum: CPU 7.8 с (user 3.83, kernel 3.97), wall 40.5 с, пик 43 МБ, дерево 9539208d0b4b
+v1.0.0: медиана CPU 20.98 с (+0% к v1.0.0), wall 37.5 с, пик 41 МБ, этапы {'1_container': 0.49, '2_decompress': 1.15, '3_decode': 7.92, '4_organizer': 10.36}
+v2.0.0: медиана CPU 6.62 с (-68% к v1.0.0), wall 11.9 с, пик 44 МБ, этапы {'1_container': 0.47, '2_decompress': 0.89, '3_decode': 3.53, '4_organizer': 0.63}
+без_fastbrace: медиана CPU 8.7 с (-59% к v1.0.0), wall 21.6 с, пик 44 МБ, этапы {'1_container': 0.53, '2_decompress': 1.09, '3_decode': 5.67, '4_organizer': 0.69}
+без_inplace: медиана CPU 9.41 с (-55% к v1.0.0), wall 19.3 с, пик 44 МБ, этапы {'1_container': 0.5, '2_decompress': 0.93, '3_decode': 3.5, '4_organizer': 3.28}
+без_jsonwrite: медиана CPU 7.56 с (-64% к v1.0.0), wall 10.6 с, пик 42 МБ, этапы {'1_container': 0.45, '2_decompress': 0.92, '3_decode': 4.76, '4_organizer': 0.75}
+без_io: медиана CPU 6.97 с (-67% к v1.0.0), wall 12.7 с, пик 44 МБ, этапы {'1_container': 0.56, '2_decompress': 1.3, '3_decode': 4.05, '4_organizer': 0.7}
+без_accum: медиана CPU 6.64 с (-68% к v1.0.0), wall 14.1 с, пик 44 МБ, этапы {'1_container': 0.39, '2_decompress': 0.86, '3_decode': 3.56, '4_organizer': 0.7}
+деревья одинаковые
+EXIT=0

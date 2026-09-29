@@ -1,0 +1,70 @@
+{
+  "base": "1.0.0",
+  "version": "2.0.0",
+  "series": [
+    {
+      "patch": "001-fastparse-readparam.patch",
+      "files": [
+        "tools/v8unpack_fastparse.py"
+      ],
+      "sha256": "9d4bac82e3fd784ac5c31a0460fab925a9ea7b0b4b7595d1d0a41ac45beda89a"
+    },
+    {
+      "patch": "002-accum.patch",
+      "files": [
+        "tools/v8unpack_accum.py"
+      ],
+      "sha256": "60bc2d8d25a191de1e94ab15c5b8866d45573a2754e383026cf7a8a6eef29bb3"
+    },
+    {
+      "patch": "003-fastbrace.patch",
+      "files": [
+        "tools/v8unpack_fastbrace.py"
+      ],
+      "sha256": "5368d08eaa786cc71a9a7b767935051fe053f9f7e1a8567ab87dc78a2201e4dc"
+    },
+    {
+      "patch": "004-jsonwrite.patch",
+      "files": [
+        "tools/v8unpack_jsonwrite.py"
+      ],
+      "sha256": "c90d5fb3d56392ef8925f658d3459fad89d4b49c1d355b9fa19bc3062beee942"
+    },
+    {
+      "patch": "005-io.patch",
+      "files": [
+        "tools/v8unpack_io.py"
+      ],
+      "sha256": "e820fe3d3e3adb77b91c7225c4d72f5a65a3cb44c8022e93c9d9980c62279e79"
+    },
+    {
+      "patch": "006-organizer-inplace.patch",
+      "files": [
+        "tools/v8unpack_organizer.py"
+      ],
+      "sha256": "963790e8223030cdf92a7693af5ea92c969326f94edaede1a50e15e0211b11f8"
+    },
+    {
+      "patch": "007-serial-wiring.patch",
+      "files": [
+        "tools/v8unpack_serial.py"
+      ],
+      "sha256": "d87ff541867457e10bf53c3197c6e315431228f1d647a7cf3aea3e68ae062027"
+    },
+    {
+      "patch": "008-check-tool.patch",
+      "files": [
+        "tools/v8unpack_fastparse_check.py"
+      ],
+      "sha256": "fe36451c1218fe4a2a780a785dc0b319211f0814e746242ece3f054f826df680"
+    },
+    {
+      "patch": "009-launchers.patch",
+      "files": [
+        "tools/run_unpack.py",
+        "tools/v8unpack_resume.py"
+      ],
+      "sha256": "881bb10eb2a655148dfa5b5a459eca2b907b8d55b80950729bd1476e1daadb5f"
+    }
+  ]
+}

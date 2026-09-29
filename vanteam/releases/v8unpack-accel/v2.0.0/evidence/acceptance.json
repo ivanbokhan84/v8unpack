@@ -1,0 +1,56 @@
+{
+  "version": "2.0.0",
+  "date": "2026-09-29",
+  "v8unpack": "1.2.13",
+  "python": "3.11.8",
+  "checks": [
+    {
+      "name": "Разбор против исходного JsonContainerDecoder",
+      "tool": "tools/v8unpack_fastparse_check.py",
+      "sample": "400 случайных файлов decode_stage_1 УНФ",
+      "mismatches": 0,
+      "passed": true
+    },
+    {
+      "name": "Тяжёлые формы против исходного JsonContainerDecoder",
+      "sample": "3 формы 1,5–2 МБ",
+      "mismatches": 0,
+      "passed": true,
+      "file": "heavy_forms_vs_upstream.log"
+    },
+    {
+      "name": "Разбор через json.loads против цепочки 1.0.0 + прототипов",
+      "sample": "11 130 файлов двух распаковок УНФ",
+      "mismatches": 0,
+      "passed": true,
+      "file": "fastbrace_vs_1.0.0_unf2.log, checks.log"
+    },
+    {
+      "name": "Сериализатор JSON против json.dumps",
+      "sample": "4060 JSON-файлов УТ 11.5",
+      "mismatches": 0,
+      "passed": true
+    },
+    {
+      "name": "Контрольный .cfe: одно дерево во всех прогонах",
+      "tool": "bench/scripts/bench_pair.py",
+      "sample": "1.0.0, 2.0.0 и 2.0.0 без каждого ускорения",
+      "passed": true,
+      "tree_sha": "9539208d0b4b919b5319dd6dd5e2084f2a73d3aeeaabdad99798a315895a647f",
+      "file": "bench_cfe_summary.json"
+    },
+    {
+      "name": "УТ 11.5.27.93 целиком против эталонной распаковки 1.0.0",
+      "tool": "bench/scripts/compare_tree.py",
+      "sample": "68 177 файлов, 24 075 каталогов",
+      "passed": true,
+      "note": "dummy.zip: содержимое то же, время записей архива — время распаковки",
+      "file": "ut_compare.json"
+    },
+    {
+      "name": "Патчи поверх 1.0.0 дают tools 2.0.0 побайтно",
+      "tool": "releases/v8unpack-accel/verify_release.py --replay",
+      "passed": true
+    }
+  ]
+}

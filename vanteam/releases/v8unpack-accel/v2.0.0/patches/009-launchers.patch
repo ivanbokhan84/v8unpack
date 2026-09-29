@@ -1,0 +1,36 @@
+diff --git a/tools/run_unpack.py b/tools/run_unpack.py
+index 8035c88..313899f 100644
+--- a/tools/run_unpack.py
++++ b/tools/run_unpack.py
+@@ -19,6 +19,9 @@ decode_file, ускоренный разбор длинных строк, неи
+     powershell Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+       CommandLine='cmd /c "python <проект>\\tools\\run_unpack.py <src> <out> <temp> > <out.log> 2> <err.log>"'}
+ 
++TEMP по умолчанию лежит рядом с результатом, на том же томе: тогда организатор переносит
++decode_stage_3 в результат одним переименованием, без копирования (v8unpack_organizer).
++
+ Если прогон оборвался на третьем проходе («Разбираем вложенные объекты»), первые два
+ повторять не нужно: python tools/v8unpack_resume.py "<TEMP>\\tmpXXXX" "<out_dir>" "<журнал>"
+ """
+@@ -61,7 +64,7 @@ from v8unpack.v8unpack import extract  # noqa: E402
+ if __name__ == "__main__":
+     v8unpack_serial._limit_load()
+     started = time.time()
+-    print(f"SRC={SRC}\nOUT={OUT}\nTEMP={TMP}\nDESCENT=нет", flush=True)
++    print(f"{v8unpack_serial.banner()}\nSRC={SRC}\nOUT={OUT}\nTEMP={TMP}\nDESCENT=нет", flush=True)
+     print("START", flush=True)
+     # Без descent: это номер версии для инкрементальной сборки, а не глубина.
+     # Любое значение включает OrganizerFileCE с побайтным сравнением O(N^2).
+diff --git a/tools/v8unpack_resume.py b/tools/v8unpack_resume.py
+index 7f7c85f..bd41b36 100644
+--- a/tools/v8unpack_resume.py
++++ b/tools/v8unpack_resume.py
+@@ -62,7 +62,7 @@ if __name__ == "__main__":
+     stage3 = os.path.join(temp_dir, "decode_stage_3")
+     if not os.path.isdir(stage1):
+         sys.exit(f"Нет {stage1}: сначала нужен полный прогон v8unpack_serial.py")
+-    print(f"STAGE1={stage1}\nDST={out_dir}\nLOG={log_path}", flush=True)
++    print(f"{v8unpack_serial.banner()}\nSTAGE1={stage1}\nDST={out_dir}\nLOG={log_path}", flush=True)
+     with open(log_path, "w", encoding="utf-8") as _log:
+         pool = helper.get_pool()
+         decode(stage1, stage3, pool=pool, options={})

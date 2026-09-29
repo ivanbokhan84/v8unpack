@@ -1,0 +1,24 @@
+{
+  "reference": "<эталонная распаковка 1.0.0>/UT_11.5.27.93",
+  "reference_files": 68177,
+  "reference_dirs": 24075,
+  "reference_tree_sha": "56e26be0f19f6776a6a92406f73de7211e876423e99ca4af7cddef1c4533d1a5",
+  "result_files": 68177,
+  "result_dirs": 24075,
+  "result_tree_sha": "68f25e2fa74dac6d3bdaf2115765994fcf0b7da58872e1aa1dec10a1c0e421f7",
+  "only_in_reference": [],
+  "only_in_result": [],
+  "different": [],
+  "dirs_mismatch": [],
+  "zip_same_content": [
+    ".\\dummy.zip"
+  ],
+  "counts": {
+    "only_in_reference": 0,
+    "only_in_result": 0,
+    "different": 0,
+    "dirs_mismatch": 0,
+    "zip_same_content": 1
+  },
+  "identical": true
+}

@@ -1,0 +1,18 @@
+{
+  "product": "v8unpack-accel",
+  "upstream": "saby-integration/v8unpack 1.2.13 (MIT)",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "date": "2026-09-28",
+      "base": null,
+      "summary": "Серийный пул, ретраи WinError, толерантный decode_file, fastparse длинных строк, PaletteColor, resume"
+    },
+    {
+      "version": "2.0.0",
+      "date": "2026-09-29",
+      "base": "1.0.0",
+      "summary": "Все ускорения: разбор через json.loads, склейки через список, быстрая запись JSON, контейнеры в памяти, организатор без копирования"
+    }
+  ]
+}

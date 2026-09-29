@@ -1,0 +1,111 @@
+diff --git a/tools/v8unpack_fastparse_check.py b/tools/v8unpack_fastparse_check.py
+index 25edefd..6cf6a33 100644
+--- a/tools/v8unpack_fastparse_check.py
++++ b/tools/v8unpack_fastparse_check.py
+@@ -1,23 +1,43 @@
+ """
+-Проверка эквивалентности ускоренного разборщика (v8unpack_fastparse) исходному JsonContainerDecoder.
++Проверка эквивалентности ускоренного разбора исходному JsonContainerDecoder v8unpack.
+ 
+-Каждый файл разбирается двумя классами, результаты (данные или тип и текст исключения) сравниваются.
+-Для файлов из списка «тяжёлых» печатается время обоих разборов.
++Эталон — исходные методы JsonContainerDecoder, взятые до подключения ускорений, плюс толерантный
++decode_file (текстовый поток, как в v8unpack_serial). Проверяемый — JsonContainerDecoder после
++импорта v8unpack_serial: все ускорения разбора из V8UNPACK_DISABLE не исключённые
++(fastparse, accum, fastbrace). Каждый файл разбирается обоими, результаты (данные или тип и текст
++исключения) сравниваются. Для файлов из списка «тяжёлых» печатается время обоих разборов.
+ 
+-Запуск: python v8unpack_fastparse_check.py <каталог decode_stage_1\\1> <случайных файлов> [тяжёлый файл ...]
++Запуск: python v8unpack_fastparse_check.py <каталог decode_stage_1> <случайных файлов> [тяжёлый файл ...]
++Каталог обходится рекурсивно. Код возврата 0 — расхождений нет, 1 — есть.
+ """
+ import os
+ import random
+ import sys
+ import time
+ 
+-from v8unpack.json_container_decoder import JsonContainerDecoder
+-import v8unpack_fastparse as fast
++from v8unpack.json_container_decoder import JsonContainerDecoder, Mode
+ 
++# Исходные методы — до импорта v8unpack_serial, который подменяет их на классе
++_PATCHED = ("decode_file", "decode_object", "_add_to_current_value", "decode_b64_line",
++            "_decode_line_read_text_file", "_decode_line_begin_read_multi_string_value",
++            "_decode_line_end_read_multi_string_value")
++_ORIGINAL = {name: JsonContainerDecoder.__dict__[name] for name in _PATCHED}
+ 
+-class FastDecoder(JsonContainerDecoder):
+-    _add_to_current_value = fast.fast_add_to_current_value
+-    decode_object = fast.fast_decode_object
++
++def _tolerant_decode_file(self, file):
++    try:
++        return _ORIGINAL["decode_file"](self, file)
++    except Exception:
++        if getattr(self, "mode", None) == Mode.READ_TEXT_FILE:
++            return self.data if self.data else ""
++        raise
++
++
++ReferenceDecoder = type("ReferenceDecoder", (JsonContainerDecoder,),
++                        dict(_ORIGINAL, decode_file=_tolerant_decode_file))
++
++sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
++import v8unpack_serial  # noqa: E402  подключает ускорения на JsonContainerDecoder
+ 
+ 
+ def parse(cls, path):
+@@ -34,31 +54,39 @@ def parse(cls, path):
+ 
+ 
+ def compare(path, timed=False):
+-    started = time.time()
+-    original = parse(JsonContainerDecoder, path)
+-    middle = time.time()
+-    patched = parse(FastDecoder, path)
+-    finished = time.time()
++    started = time.process_time()
++    original = parse(ReferenceDecoder, path)
++    middle = time.process_time()
++    patched = parse(JsonContainerDecoder, path)
++    finished = time.process_time()
+     if timed:
+         print(f"{os.path.basename(path)} {os.path.getsize(path) >> 10} КБ: "
+-              f"исходный {middle - started:.1f} с, ускоренный {finished - middle:.2f} с, "
++              f"исходный {middle - started:.1f} с, ускоренный {finished - middle:.2f} с CPU, "
+               f"совпадает={original == patched}", flush=True)
+-    return original == patched, original[0]
++    return original == patched, original[0], middle - started, finished - middle
+ 
+ 
+ if __name__ == "__main__":
+     folder, count = sys.argv[1], int(sys.argv[2])
+     heavy = sys.argv[3:]
+-    names = [entry.name for entry in os.scandir(folder) if entry.is_file()]
++    paths = [os.path.join(dp, f) for dp, _dn, fn in os.walk(folder) for f in fn]
+     random.seed(1)
+-    sample = random.sample(names, min(count, len(names)))
++    sample = random.sample(paths, min(count, len(paths)))
+     mismatches, kinds = [], {"ok": 0, "err": 0}
+-    for name in sample:
+-        same, kind = compare(os.path.join(folder, name))
++    t_ref = t_new = 0.0
++    for path in sample:
++        same, kind, a, b = compare(path)
+         kinds[kind] += 1
++        t_ref += a
++        t_new += b
+         if not same:
+-            mismatches.append(name)
++            mismatches.append(os.path.relpath(path, folder))
++    print(f"{v8unpack_serial.banner()}", flush=True)
+     print(f"случайных файлов {len(sample)}: разобрано {kinds['ok']}, с исключением {kinds['err']}, "
+-          f"расхождений {len(mismatches)} {mismatches[:10]}", flush=True)
++          f"расхождений {len(mismatches)} {mismatches[:10]}; CPU исходный {t_ref:.1f} с, ускоренный {t_new:.1f} с",
++          flush=True)
+     for path in heavy:
+-        compare(path, timed=True)
++        same, *_ = compare(path, timed=True)
++        if not same:
++            mismatches.append(path)
++    sys.exit(1 if mismatches else 0)

@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "files": {
+    "README.md": "eb11f43c12a7af204c1dce0b1c843ae9f5c6ca3863632090d9a4c3d9237e90ab",
+    "tools/check_cf.py": "1afcdd4cb392b56749b3500c612acdc02a8adaf1557e99cc09e80f32fd367b1a",
+    "tools/run_unpack.py": "5bd03f7559f0ae476c7b86da6f5b9ba716ff2bf2d7424430fe3e19ae4c172912",
+    "tools/v8unpack_fastparse.py": "75d628c236630395d270719c2b953aeacbf68073152dafa8d734211640aef5c8",
+    "tools/v8unpack_fastparse_check.py": "ad67c172cd92178c6739d8552b54fb8331b5b9543f9d3f22d8a425161a0aa843",
+    "tools/v8unpack_newtypes.py": "1259a5cf1b7d59e48f390cc5df0f0be03f185e0c1fc62f853411c5cb8130bc1b",
+    "tools/v8unpack_resume.py": "572620a30fdb022e5aeb2c9b4297adfee8a7f2bd8e87890abaa113e4d3364a5b",
+    "tools/v8unpack_serial.py": "233b02e0f25eb97a979a76bdc0fc1156f9a3b42fb95b807029c4f6875f4d061c"
+  }
+}

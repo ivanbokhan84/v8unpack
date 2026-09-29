@@ -1,0 +1,124 @@
+diff --git a/tools/v8unpack_serial.py b/tools/v8unpack_serial.py
+index e64ed36..74a77a3 100644
+--- a/tools/v8unpack_serial.py
++++ b/tools/v8unpack_serial.py
+@@ -1,5 +1,5 @@
+ """
+-Серийная (однопроцессная) обёртка над v8unpack 1.2.6-1.2.13 (проверена на обеих версиях).
++Серийная (однопроцессная) обёртка над v8unpack 1.2.6-1.2.13 с ускорениями. Версия 2.0.0.
+ 
+ Полностью отключает пул процессов: helper.get_pool → фейковый _SerialPool,
+ у которого imap_unordered выполняет задачи ПОСЛЕДОВАТЕЛЬНО в текущем процессе.
+@@ -8,17 +8,26 @@
+   - WinError 32 (sharing violation при os.rename),
+   - WinError 5  (access denied при open/rename — драйвер-фильтр AV),
+   - WinError 87 (invalid parameter — сбой пула после падения воркера).
+-Медленнее параллельного, но надёжно. Дополнительно: ретрай os.rename/os.remove на
+-WinError 32/5 (транзиентная блокировка) + толерантность decode_file к текстовому потоку
+-+ ускоренный разбор длинных строк (v8unpack_fastparse: форма УНФ 385 с -> 0,3 с).
++Дополнительно: ретрай os.rename/os.remove на WinError 32/5 (транзиентная блокировка),
++толерантность decode_file к текстовому потоку, неизвестные виды метаданных (v8unpack_newtypes)
++и ускорения (каждое — отдельный модуль, выключается переменной окружения V8UNPACK_DISABLE):
++
++  fastparse  v8unpack_fastparse   длинные строки и значения вне кавычек в автомате разбора
++  accum      v8unpack_accum       квадратичные склейки: base64, текстовые файлы, раскладка модулей
++  fastbrace  v8unpack_fastbrace   разбор скобочного формата через json.loads
++  jsonwrite  v8unpack_jsonwrite   запись JSON одной строкой своим сериализатором
++  io         v8unpack_io          вложенные контейнеры в памяти, кэш созданных каталогов
++  inplace    v8unpack_organizer   организатор без копирования decode_stage_3
++
++Пример: V8UNPACK_DISABLE=fastbrace,inplace — работать без разбора через JSON и без переноса каталога.
++Результат распаковки при любом наборе побайтно одинаковый.
+ 
+ Запуск: python v8unpack_serial.py <src.cf|cfe|epf> <out_dir> [descent]
+ 
+ 3-й аргумент (descent) по умолчанию НЕ передаётся в v8unpack: это номер версии файла для
+ инкрементальной git-сборки, а не глубина распаковки. Любое его значение включает режим
+ OrganizerFileCE с побайтным сравнением O(N²) — на крупной .cf распаковка встаёт, при этом
+-контент не меняется. Задавать только для версионной сборки (см.
+-docs/raspakovka-v8unpack.md).
++контент не меняется. Задавать только для версионной сборки (см. docs/raspakovka-v8unpack.md).
+ """
+ import os
+ import sys
+@@ -28,6 +37,15 @@ import v8unpack.helper as helper
+ from v8unpack.v8unpack import extract
+ from v8unpack.json_container_decoder import JsonContainerDecoder, Mode
+ 
++__version__ = "2.0.0"
++
++FEATURES = ("fastparse", "accum", "fastbrace", "jsonwrite", "io", "inplace")
++DISABLED = {name.strip().lower() for name in os.environ.get("V8UNPACK_DISABLE", "").split(",") if name.strip()}
++unknown = DISABLED - set(FEATURES)
++if unknown:
++    raise SystemExit(f"V8UNPACK_DISABLE: неизвестные ускорения {sorted(unknown)}; допустимы {', '.join(FEATURES)}")
++ENABLED = [name for name in FEATURES if name not in DISABLED]
++
+ _RETRY_WINERR = (5, 32)
+ _orig_replace = os.replace
+ _orig_remove = os.remove
+@@ -57,7 +75,7 @@ os.rename = _rename_retry
+ os.replace = _rename_retry
+ os.remove = _remove_retry
+ 
+-# Толерантность decode_file к текстовому потоку (баг v8unpack 1.2.6)
++# Толерантность decode_file к текстовому потоку (баг v8unpack 1.2.6, в 1.2.13 не исправлен)
+ if not getattr(JsonContainerDecoder, "_text_tolerant", False):
+     _orig_decode_file = JsonContainerDecoder.decode_file
+ 
+@@ -72,16 +90,33 @@ if not getattr(JsonContainerDecoder, "_text_tolerant", False):
+     JsonContainerDecoder.decode_file = decode_file
+     JsonContainerDecoder._text_tolerant = True
+ 
+-# Ускоренное накопление длинных строк в разборщике (квадратичное время на крупных формах).
+-# Проверка эквивалентности: v8unpack_fastparse_check.py
+ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+-import v8unpack_fastparse  # noqa: E402
+ import v8unpack_newtypes  # noqa: E402
+ 
+-v8unpack_fastparse.apply()
+ # Виды метаданных, которых v8unpack не знает (цвета палитры 8.5.1): иначе объекты пропускаются
+ v8unpack_newtypes.apply()
+ 
++# Ускорения. Порядок важен: fastbrace ставится после толерантного decode_file и вызывает его
++# в запасном пути; organizer опирается на accum и io.
++if "fastparse" in ENABLED:
++    import v8unpack_fastparse  # noqa: E402
++    v8unpack_fastparse.apply()
++if "accum" in ENABLED:
++    import v8unpack_accum  # noqa: E402
++    v8unpack_accum.apply()
++if "fastbrace" in ENABLED:
++    import v8unpack_fastbrace  # noqa: E402
++    v8unpack_fastbrace.apply()
++if "jsonwrite" in ENABLED:
++    import v8unpack_jsonwrite  # noqa: E402
++    v8unpack_jsonwrite.apply()
++if "io" in ENABLED:
++    import v8unpack_io  # noqa: E402
++    v8unpack_io.apply()
++if "inplace" in ENABLED:
++    import v8unpack_organizer  # noqa: E402
++    v8unpack_organizer.apply()
++
+ 
+ class _SerialPool:
+     """Замена multiprocessing.Pool: всё выполняется последовательно в этом процессе."""
+@@ -125,12 +160,16 @@ def _limit_load():
+         print(f"SetPriorityClass: {err}", flush=True)
+ 
+ 
++def banner():
++    return f"v8unpack-accel {__version__}; ускорения: {', '.join(ENABLED) or 'нет'}"
++
++
+ if __name__ == "__main__":
+     _limit_load()
+     src = sys.argv[1]
+     dst = sys.argv[2]
+     descent = sys.argv[3] if len(sys.argv) > 3 else None
+-    print(f"SRC={src}\nDST={dst}\nTEMP={os.environ.get('TEMP')}\nDESCENT={descent or 'нет'}", flush=True)
++    print(f"{banner()}\nSRC={src}\nDST={dst}\nTEMP={os.environ.get('TEMP')}\nDESCENT={descent or 'нет'}", flush=True)
+     if descent in (None, "", "0", "no", "none"):
+         extract(src, dst)
+     else:
