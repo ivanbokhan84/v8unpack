@@ -1,0 +1,118 @@
+"""
+Быстрая запись JSON в v8unpack 1.2.6-1.2.13: helper.json_write.
+
+Источник: json_write — изменённая копия helper.json_write (saby-integration/v8unpack, MIT,
+Copyright (c) 2015 infactum); dumps — своя реализация формата json.dumps(indent=2, ensure_ascii=False).
+
+v8unpack пишет каждый объект через json.dump(data, file, ensure_ascii=False, indent=2). С отступами
+CPython (до 3.14) кодирует JSON на чистом Python: генераторы _iterencode выдают миллионы мелких
+кусков, и каждый уходит в TextIOWrapper.write отдельным вызовом. В профиле распаковки это 40% CPU.
+
+dumps собирает тот же текст рекурсией по спискам и словарям в один список кусков; строки кодирует
+C-функция json.encoder.encode_basestring (та же, что у json.dumps при ensure_ascii=False).
+Файл пишется одной записью. Формат побайтно как у json.dumps(indent=2, ensure_ascii=False):
+разделители ',' и ': ', пустые [] и {}, null/true/false, int через int.__repr__.
+
+Типы вне str/list/tuple/dict/None/bool/int (float, подклассы, нестроковые ключи) не угадываются:
+такой объект целиком уходит в штатный json.dumps.
+
+Сверка: 4060 JSON-файлов выгрузки УТ 11.5 (216 МБ) — 0 расхождений с json.dumps, CPU 11,4 → 4,2 с.
+"""
+import json
+import os
+
+from json.encoder import encode_basestring
+from v8unpack import helper
+from v8unpack.ext_exception import ExtException
+
+_IND = ['\n' + '  ' * i for i in range(256)]
+
+
+class _Unsupported(Exception):
+    pass
+
+
+def dumps(obj):
+    parts = []
+    append = parts.append
+    enc = encode_basestring
+    ind_cache = _IND
+
+    def w(o, level):
+        t = type(o)
+        if t is list or t is tuple:
+            if not o:
+                append('[]')
+                return
+            ind = ind_cache[level + 1]
+            sep = ',' + ind
+            append('[' + ind)
+            first = True
+            for x in o:
+                if first:
+                    first = False
+                else:
+                    append(sep)
+                if type(x) is str:
+                    append(enc(x))
+                else:
+                    w(x, level + 1)
+            append(ind_cache[level] + ']')
+        elif t is dict:
+            if not o:
+                append('{}')
+                return
+            ind = ind_cache[level + 1]
+            sep = ',' + ind
+            append('{' + ind)
+            first = True
+            for k, v in o.items():
+                if first:
+                    first = False
+                else:
+                    append(sep)
+                if type(k) is not str:
+                    raise _Unsupported
+                append(enc(k))
+                append(': ')
+                if type(v) is str:
+                    append(enc(v))
+                else:
+                    w(v, level + 1)
+            append(ind_cache[level] + '}')
+        elif t is str:
+            append(enc(o))
+        elif o is None:
+            append('null')
+        elif o is True:
+            append('true')
+        elif o is False:
+            append('false')
+        elif t is int:
+            append(int.__repr__(o))
+        else:
+            raise _Unsupported
+
+    try:
+        w(obj, 0)
+    except (_Unsupported, IndexError):  # IndexError: вложенность глубже кэша отступов
+        return json.dumps(obj, ensure_ascii=False, indent=2)
+    return ''.join(parts)
+
+
+def json_write(data, path, file_name):
+    _path = os.path.normpath(os.path.join(path, file_name))
+    helper.makedirs(path, exist_ok=True)
+    try:
+        text = dumps(data)
+        with open(_path, 'w', encoding='utf-8') as file:
+            file.write(text)
+    except Exception as err:
+        raise ExtException(message='Ошибка записи', detail=f'{err} в файле ({_path})')
+
+
+def apply():
+    if getattr(helper, "_fast_json_write", False):
+        return
+    helper.json_write = json_write  # модули берут helper.json_write через атрибут модуля
+    helper._fast_json_write = True

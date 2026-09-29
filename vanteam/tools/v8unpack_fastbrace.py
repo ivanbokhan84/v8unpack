@@ -1,0 +1,154 @@
+"""
+Разбор скобочного формата 1С через json.loads (JsonContainerDecoder.decode_file, v8unpack 1.2.6-1.2.13).
+
+Автомат v8unpack идёт по файлу построчно и посимвольно на Python. Здесь скобочный текст переводится
+в JSON-текст операциями уровня C (split, replace, translate) и разбирается json.loads. Правила
+автомата в режиме READ_PARAM:
+  - объект открывается только '{' в начале строки; '{' в середине строки — символ значения;
+  - значение — всё между разделителями ',' и '}', кавычки внутри значения сохраняются как есть;
+  - пустое значение сразу после '}' не добавляется, в остальных местах пустое значение — '';
+  - перевод строки вне кавычек ничего не добавляет.
+Строки (с удвоенными кавычками) выделяются чётностью: text.split('"') чередует «вне» и «внутри».
+Многострочное значение (',"' в конце строки) автомат собирает в тот же текст, что обычную строку.
+
+Особые случаи воспроизведены отдельно:
+  - base64-блок '{#base64:...}' склеивается без переводов строк как в decode_b64_line,
+    однострочный получает префикс '##';
+  - текстовый файл (первая непустая строка не с '{' или '}') возвращается текстом без ведущих
+    пустых строк — как толерантный decode_file из v8unpack_serial (штатный 1.2.13 здесь падает).
+
+Всё необычное уходит в исходный автомат (тот же результат): файл-картинка целиком (BigBase64,
+определяется по первым двум строкам, файл не дочитывается), base64 не в начале строки, нечётное число
+кавычек, пустые строки, объект сразу после '}' без запятой, ошибка json.loads.
+
+Сверка с автоматом v8unpack (с ускорениями fastparse и accum): 11 130 файлов decode_stage_1 двух
+распаковок УНФ — 0 расхождений; разбор в 2,8-5,5 раза быстрее.
+"""
+import io
+import itertools
+import json
+import re
+
+from v8unpack.json_container_decoder import JsonContainerDecoder
+
+OPEN, SLOT, QUOTE, LB, RB = '\x01', '\x04', '\x05', '\x06', '\x07'
+_B64 = '\n{#base64:'
+_ESC = {i: f'\\u{i:04x}' for i in range(32)}
+_ESC.update({ord('\\'): '\\\\', ord('\t'): '\\t', ord('\r'): '\\r', ord('\b'): '\\b', ord('\f'): '\\f'})
+del _ESC[ord('\n')]
+_NEED_ESC = re.compile(r'[\x00-\x09\x0b-\x1f\\]')
+_FINAL = str.maketrans({LB: '[', RB: ']', SLOT: '"'})
+_loads = json.loads
+
+stats = {'fast': 0, 'fallback': 0}
+
+
+def _esc_one(m):
+    return _ESC[ord(m.group())]
+
+
+def _interleave(outs, ins):
+    res = [None] * (len(outs) + len(ins))
+    res[0::2] = outs
+    res[1::2] = ins
+    return res
+
+
+def _inline_b64(outside):
+    """Блок '{#base64:...}' на нескольких строках -> одна строка с '#base64:<склеено>',
+    на одной строке -> '##base64:...' (как decode_b64_line). None — неподдерживаемый вид."""
+    segs = outside.split(_B64)
+    for i in range(1, len(segs)):
+        seg = segs[i]
+        end = seg.find('}')
+        if end < 0:
+            return None
+        body = seg[:end]
+        if '\n' in body:
+            segs[i] = '#base64:' + body.replace('\n', '') + seg[end:]
+        else:
+            segs[i] = '##base64:' + seg
+    return '\n{'.join(segs)
+
+
+def convert(text):
+    """Скобочный текст -> JSON-текст списка корневых объектов или None, если нужен исходный автомат."""
+    if not text or text[0] != '{':
+        return None
+    if _NEED_ESC.search(text):  # управляющие символы и '\' редки: экранируются только найденные
+        text = _NEED_ESC.sub(_esc_one, text)
+    parts = text.split('"')
+    if not len(parts) & 1:  # нечётное число кавычек: незакрытая строка
+        return None
+    outside = '\n' + QUOTE.join(parts[0::2])
+    nb = outside.count('#base64')
+    if nb:
+        # base64 только в начале строки; файл-картинка целиком (BigBase64) — исходному автомату
+        if nb != outside.count(_B64) or outside.startswith('\n{1,\n{#base64'):
+            return None
+        outside = _inline_b64(outside)
+        if outside is None:
+            return None
+    o = outside.replace('\n{', OPEN)
+    n = o.count('\n')
+    if n:
+        if n - o.count('\n}') - (1 if o.endswith('\n') else 0):  # пустая строка или строка не с '{'/'}'
+            return None
+        o = o.replace('\n', '')
+    if '}' + OPEN in o:  # объект сразу после '}' без запятой: у автомата другой previous_char
+        return None
+    o = (o.replace(OPEN, LB + SLOT)
+          .replace(',', SLOT + ',' + SLOT)
+          .replace('}', SLOT + RB)
+          .replace(RB + SLOT, RB)      # пустой слот после '}' не добавляется
+          .replace(SLOT + LB, LB))     # слот перед новым объектом отбрасывается
+    o = ('[' + o + ']').translate(_FINAL)
+    if len(parts) == 1:
+        return o
+    inside = QUOTE.join(parts[1::2]).replace('\n', '\\n')
+    # каждая исходная кавычка становится \" внутри JSON-строки значения
+    return '\\"'.join(_interleave(o.split(QUOTE), inside.split(QUOTE)))
+
+
+_orig_decode_file = JsonContainerDecoder.decode_file
+
+
+def decode_file(self, file):
+    l1 = file.readline()
+    l2 = file.readline()
+    if l1 == '{1,\n' and l2.startswith('{#base64'):
+        # двоичный файл целиком (BigBase64): автомат бросает исключение на второй строке, не дочитывая файл
+        stats['fallback'] += 1
+        return _orig_decode_file(self, itertools.chain((l1, l2), file))
+    text = l1 + l2 + file.read()
+    if not text:
+        stats['fast'] += 1
+        return ''
+    if text[0] != '{':
+        s = text.lstrip('\n')  # текстовый файл: ведущие пустые строки автомат пропускает
+        if not s:
+            stats['fast'] += 1
+            return ''
+        if s[0] not in '{}':
+            stats['fast'] += 1
+            return s
+    js = convert(text)
+    if js is not None:
+        try:
+            data = _loads(js)
+            stats['fast'] += 1
+            return data if data else ''
+        except ValueError:
+            pass
+    stats['fallback'] += 1
+    return _orig_decode_file(self, io.StringIO(text))
+
+
+def apply():
+    """Ставить после толерантной обёртки decode_file (v8unpack_serial): запасной путь вызывает её."""
+    global _orig_decode_file
+    if getattr(JsonContainerDecoder, '_fast_brace', False):
+        return
+    _orig_decode_file = JsonContainerDecoder.decode_file
+    JsonContainerDecoder.decode_file = decode_file
+    JsonContainerDecoder._fast_brace = True

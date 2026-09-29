@@ -1,0 +1,27 @@
+v8unpack-accel (vanteam/ in this repository)
+Copyright (c) 2026 Ivan Bokhan
+Licensed under the MIT License, see vanteam/LICENSE.
+
+This repository is a fork of saby-integration/v8unpack
+  https://github.com/saby-integration/v8unpack
+  Copyright (c) 2015 infactum
+  Licensed under the MIT License, see LICENSE in the repository root.
+The v8unpack package itself (src/, tests/ and the other upstream files) is not modified on this branch.
+
+The following files in vanteam/tools contain modified copies or rewrites of functions from
+v8unpack 1.2.13 (MIT, Copyright (c) 2015 infactum); the source is named in each file header:
+  v8unpack_fastparse.py   JsonContainerDecoder.decode_object, JsonContainerDecoder._add_to_current_value
+  v8unpack_accum.py       JsonContainerDecoder.decode_b64_line, _decode_line_read_text_file,
+                          _decode_line_begin_read_multi_string_value, _decode_line_end_read_multi_string_value,
+                          OrganizerCode.unpack
+  v8unpack_io.py          container_reader.decompress_file_and_extract, Container.extract_file
+  v8unpack_jsonwrite.py   helper.json_write
+  v8unpack_organizer.py   OrganizerFile.unpack, OrganizerFile.unpack_code_file
+The rest of vanteam/ is original work.
+
+Articles and reports (docs/vanteam/*.html, vanteam/docs/raspakovka-v8unpack.md) are licensed under
+Creative Commons Attribution 4.0 International (CC BY 4.0), see docs/vanteam/LICENSE.md.
+
+Runtime dependencies are not included in this repository:
+  tqdm    MPL-2.0 AND MIT   (dependency of v8unpack)
+  psutil  BSD-3-Clause      (v8unpack_resume.py and benchmark scripts only)
