@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Замеры v8unpack-accel 2.0.0</title>
+<meta name="description" content="Отчёт о замерах и приёмке обёрток v8unpack-accel 2.0.0: методика, парный замер с чередованием, вклад каждого ускорения, распаковка УТ 11.5 целиком, сверки результата.">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-2: #f3f2ee;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --accent: #2a78d6;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --good: #006300;
+  --warn-bg: #fff4dc;
+  --warn-ink: #6b4a00;
+  --code-bg: #f0efec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #232321;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-3: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --accent: #3987e5;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --good: #0ca30c;
+    --warn-bg: #2e2612;
+    --warn-ink: #f0c56a;
+    --code-bg: #262624;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-2: #232321;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --ink-3: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255,255,255,0.10);
+  --accent: #3987e5;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --good: #0ca30c;
+  --warn-bg: #2e2612;
+  --warn-ink: #f0c56a;
+  --code-bg: #262624;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 17px/1.62 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.wrap { max-width: 860px; margin: 0 auto; padding: 32px 16px 80px; }
+header.top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.theme-btn {
+  flex: none; border: 1px solid var(--border); background: var(--surface); color: var(--ink-2);
+  border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 14px; cursor: pointer;
+}
+.kicker { color: var(--ink-3); font-size: 14px; letter-spacing: .02em; margin: 0 0 8px; }
+h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 0 0 16px; letter-spacing: -.01em; }
+h2 { font-size: 26px; line-height: 1.25; margin: 56px 0 12px; letter-spacing: -.005em; }
+h3 { font-size: 19px; margin: 28px 0 8px; }
+p { margin: 0 0 14px; }
+.lead { font-size: 19px; color: var(--ink-2); }
+.meta { color: var(--ink-3); font-size: 14px; margin-bottom: 28px; }
+a { color: var(--accent); }
+code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .88em;
+  background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere;
+}
+pre {
+  background: var(--code-bg); border-radius: 8px; padding: 14px 16px; overflow-x: auto;
+  font: 14px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+pre code { background: none; padding: 0; }
+.note {
+  background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px;
+  padding: 12px 16px; font-size: 15px; margin: 16px 0;
+}
+.toc {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 20px; margin: 24px 0 8px; font-size: 15px;
+}
+.toc ol { margin: 6px 0 0; padding-left: 22px; columns: 2 260px; column-gap: 32px; }
+.toc li { margin: 2px 0; break-inside: avoid; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 20px 0; }
+.tile {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+}
+.tile .label { color: var(--ink-2); font-size: 14px; line-height: 1.35; }
+.tile .value { font-size: 30px; font-weight: 600; line-height: 1.2; margin: 6px 0 2px; }
+.tile .sub { color: var(--ink-3); font-size: 13px; line-height: 1.35; }
+.table-wrap { overflow-x: auto; margin: 12px 0 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--ink-2); font-weight: 600; background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.caption { color: var(--ink-3); font-size: 13px; margin: -10px 0 18px; }
+ul, ol { padding-left: 24px; }
+li { margin: 4px 0; }
+.chart {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 16px 12px; margin: 16px 0 20px; position: relative;
+}
+.chart h4 { margin: 0 0 4px; font-size: 16px; }
+.chart .sub { color: var(--ink-2); font-size: 14px; margin: 0 0 10px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--ink-2); margin: 0 0 10px; }
+.legend span::before {
+  content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px;
+  margin-right: 6px; vertical-align: -1px; background: var(--c);
+}
+.rows { position: relative; margin-top: 22px; }
+.row { display: grid; grid-template-columns: minmax(96px, 30%) 1fr; gap: 10px; align-items: center; padding: 6px 0; }
+.row .cat { font-size: 14px; color: var(--ink-2); line-height: 1.3; }
+.track { position: relative; display: flex; flex-direction: column; gap: 2px; }
+.bar-line { display: flex; align-items: center; gap: 6px; min-height: 14px; }
+.bar {
+  flex: none; height: 12px; border-radius: 0 4px 4px 0; background: var(--c); min-width: 2px;
+}
+.bar-val { font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bar-hit { display: flex; align-items: center; gap: 6px; flex: 1; cursor: default; padding: 1px 0; }
+.ref {
+  position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid var(--axis); pointer-events: none;
+}
+.ref-label { position: absolute; top: -18px; transform: translateX(-50%); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.axis { display: grid; grid-template-columns: minmax(96px, 30%) 1fr; gap: 10px; margin-top: 4px; }
+.axis .ticks { position: relative; height: 18px; border-top: 1px solid var(--axis); }
+.axis .ticks span { position: absolute; top: 2px; transform: translateX(-50%); font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.tip {
+  position: fixed; z-index: 10; pointer-events: none; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.14); opacity: 0; transition: opacity .08s; max-width: 260px;
+}
+.tip b { font-weight: 600; }
+details.data { margin-top: 8px; font-size: 14px; }
+details.data summary { cursor: pointer; color: var(--ink-2); }
+.pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border); }
+footer { margin-top: 64px; color: var(--ink-3); font-size: 14px; border-top: 1px solid var(--grid); padding-top: 16px; }
+@media (max-width: 560px) {
+  body { font-size: 16px; }
+  h2 { font-size: 22px; }
+  .row, .axis { grid-template-columns: 88px 1fr; }
+}
+@media print {
+  .theme-btn, .tip { display: none; }
+  body { background: #fff; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <p class="kicker">Инструменты 1С · отчёт о замерах и приёмке · v8unpack-accel 2.0.0 · 29.09.2026</p>
+    <h1>Замеры и приёмка v8unpack-accel 2.0.0</h1>
+  </div>
+  <button class="theme-btn" id="themeBtn" type="button" aria-label="Переключить тему">Тема</button>
+</header>
+
+<p class="lead">Что и как измерено при выпуске 2.0.0. Две версии сравнивались на одних и тех же файлах, на одной машине, с чередованием прогонов. Результат распаковки сверялся побайтно с 1.0.0, со штатным v8unpack и с эталонной распаковкой УТ 11.5.</p>
+
+<p class="meta">Статья о том, как устроены ускорения, — <a href="Оптимизация_распаковки_v8unpack.html">«Ускорение распаковки 1С через v8unpack»</a>. Скрипты замеров — <code>bench/scripts/</code>, сырые результаты — <code>releases/v8unpack-accel/v2.0.0/evidence/</code>.</p>
+
+<div class="tiles" aria-label="Коротко">
+  <div class="tile"><div class="label">CPU распаковки .cfe 3 МБ</div><div class="value">−68%</div><div class="sub">2.0.0 против 1.0.0: 20,98 → 6,62 с, медиана 5 раундов</div></div>
+  <div class="tile"><div class="label">УТ 11.5, 883 МБ, целиком</div><div class="value">8 мин 25 с</div><div class="sub">было 46,5 мин (1.0.0); 68&nbsp;177 файлов побайтно те же</div></div>
+  <div class="tile"><div class="label">Тяжёлая форма 2 МБ, разбор</div><div class="value">537 с → 0,06 с</div><div class="sub">CPU, исходный v8unpack против 2.0.0</div></div>
+  <div class="tile"><div class="label">Результат распаковки</div><div class="value">тот же</div><div class="sub">все 35 прогонов .cfe — одно дерево</div></div>
+</div>
+
+<nav class="toc" aria-label="Содержание">
+  <b>Содержание</b>
+  <ol>
+    <li><a href="#method">Методика</a></li>
+    <li><a href="#accept">Приёмка: результат тот же</a></li>
+    <li><a href="#cfe">Контрольный .cfe: 1.0.0 против 2.0.0</a></li>
+    <li><a href="#ablation">Вклад каждого ускорения</a></li>
+    <li><a href="#ut">УТ 11.5 целиком</a></li>
+    <li><a href="#parse">Разбор: тяжёлые формы и выборки</a></li>
+    <li><a href="#json">Запись JSON</a></li>
+    <li><a href="#av">Антивирус и время ядра</a></li>
+    <li><a href="#build">Сборка</a></li>
+    <li><a href="#gaps">Что не проверено</a></li>
+    <li><a href="#repro">Как воспроизвести</a></li>
+  </ol>
+</nav>
+
+<h2 id="method">1. Методика</h2>
+<div class="table-wrap"><table>
+  <tbody>
+    <tr><th>Машина</th><td>Windows 11, 4 физических / 8 логических ядер, ОЗУ 35 ГиБ; Python 3.11.8, v8unpack 1.2.13, psutil 7.0.0</td></tr>
+    <tr><th>Фон</th><td>рабочая машина; чужие процессы (редактор, сборки, проверки кода) занимали 60–100% CPU всё время замеров. Поэтому время по часам (wall) недостоверно, сравнение — по CPU</td></tr>
+    <tr><th>Метрика</th><td>CPU процесса распаковки: user + kernel (psutil), по этапам — через обёртки вокруг четырёх проходов <code>extract</code>. Все варианты серийные, один процесс, приоритет BelowNormal</td></tr>
+    <tr><th>Порядок</th><td>парный замер с чередованием: варианты по очереди, в нечётных раундах прямой порядок, в чётных обратный; каждый прогон — отдельный процесс; медиана по раундам</td></tr>
+    <tr><th>Результат</th><td>манифест каждого прогона: sha256 всех файлов и список каталогов; <code>tree_sha</code> — хеш отсортированного манифеста. Одинаковый <code>tree_sha</code> — побайтно одинаковое дерево</td></tr>
+    <tr><th>Антивирус</th><td>проверка файлов антивирусом в реальном времени на машине замеров была выключена; контрольный замер 28.09 шёл с включённой</td></tr>
+    <tr><th>Файлы</th><td><code>ComplexBitrix24_RU_UNF.cfe</code> — расширение 3 МБ → 1483 файла, 598 каталогов, 30 946 055 байт; <code>1Cv8-ут-11.5.27.93-.cf</code> — УТ 11.5, 883 МБ → 68 177 файлов; <code>decode_stage_1</code> двух распаковок УНФ 3.0.14 для сверки разбора</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="accept">2. Приёмка: результат тот же</h2>
+<p>Критерии приёмки заданы заранее, до замеров: сверка разбора на 400 файлах без расхождений, побайтно то же дерево на полной распаковке, замер парами не меньше трёх раундов.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Проверка</th><th>Объём</th><th>Итог</th></tr></thead>
+  <tbody>
+    <tr><td>Разбор 2.0.0 против исходного <code>JsonContainerDecoder</code> (<code>v8unpack_fastparse_check.py</code>)</td><td>400 случайных файлов <code>decode_stage_1</code> УНФ</td><td><span class="pill">0 расхождений</span> 394 разобрано, 6 исключений совпали</td></tr>
+    <tr><td>То же на тяжёлых формах</td><td>3 формы 1,5–2 МБ</td><td><span class="pill">совпали</span></td></tr>
+    <tr><td>Разбор через <code>json.loads</code> против цепочки 1.0.0 + прототипов</td><td>11 130 файлов двух распаковок УНФ, 440 МБ</td><td><span class="pill">0 расхождений</span> запасной путь — 193 файла (1,7%)</td></tr>
+    <tr><td>Запись JSON против <code>json.dumps</code></td><td>4060 JSON-файлов УТ 11.5, 216 МБ</td><td><span class="pill">0 расхождений</span></td></tr>
+    <tr><td>Контрольный <code>.cfe</code>: 1.0.0, 2.0.0 и 2.0.0 без каждого ускорения (<code>bench_pair.py</code>)</td><td>35 прогонов, по 1483 файла</td><td><span class="pill">одно дерево</span> совпадает с эталоном 28.09</td></tr>
+    <tr><td>УТ 11.5.27.93 целиком, 2.0.0 против эталонной распаковки 1.0.0 (<code>compare_tree.py</code>)</td><td>68 177 файлов, 24 075 каталогов, 3,46 ГБ</td><td><span class="pill">побайтно равно</span> кроме времени в записях <code>dummy.zip</code>, содержимое архива то же</td></tr>
+    <tr><td>Патчи 2.0.0 поверх 1.0.0 (<code>verify_release.py --replay</code>)</td><td>9 патчей, 12 файлов</td><td><span class="pill">побайтно равно</span> <code>tools/</code></td></tr>
+  </tbody>
+</table></div>
+<p><code>dummy.zip</code> — второй контейнер <code>.cf</code>, который v8unpack при каждой распаковке пересобирает через <code>shutil.make_archive</code>. В записях архива стоит время распаковки, поэтому его хеш разный при любой версии. Сверка сравнивает имена, CRC и байты записей — они совпали.</p>
+
+<h2 id="cfe">3. Контрольный .cfe: 1.0.0 против 2.0.0</h2>
+<div id="cfeBody"><p>Расширение <code>ComplexBitrix24_RU_UNF.cfe</code> (3 МБ → 1483 файла), 5 раундов с чередованием, CPU процесса по этапам.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Показатель (медиана 5 раундов)</th><th class="num">1.0.0</th><th class="num">2.0.0</th><th class="num">Изменение</th></tr></thead>
+  <tbody>
+    <tr><td><b>CPU прогона целиком, с</b></td><td class="num"><b>20,98</b></td><td class="num"><b>6,62</b></td><td class="num"><b>−68%</b></td></tr>
+    <tr><td>— user, с</td><td class="num">12,25</td><td class="num">2,91</td><td class="num">−76%</td></tr>
+    <tr><td>— kernel, с</td><td class="num">8,92</td><td class="num">3,31</td><td class="num">−63%</td></tr>
+    <tr><td>Распаковка бинарника</td><td class="num">0,49</td><td class="num">0,47</td><td class="num">−4%</td></tr><tr><td>Вложенные контейнеры</td><td class="num">1,15</td><td class="num">0,89</td><td class="num">−23%</td></tr><tr><td>Разбор объектов</td><td class="num">7,92</td><td class="num">3,53</td><td class="num">−55%</td></tr><tr><td>Организатор</td><td class="num">10,36</td><td class="num">0,63</td><td class="num">−94%</td></tr>
+    <tr><td>Время по часам, с (шум фона)</td><td class="num">37,5</td><td class="num">11,9</td><td class="num">−68%</td></tr>
+    <tr><td>Пик памяти, МБ</td><td class="num">41</td><td class="num">44</td><td class="num">+7%</td></tr>
+  </tbody>
+</table></div>
+<p class="caption">CPU всех раундов: 1.0.0 — 25,22, 20,06, 20,70, 20,98, 21,31 с; 2.0.0 — 6,77, 6,62, 5,98, 5,48, 7,50 с.</p>
+<div class="chart" id="chCfe"></div>
+<p>Дерево результата во всех 35 прогонах одно и то же (1483 файла, 598 каталогов, 30 946 055 байт, <code>tree_sha</code> <code>9539208d0b4b…</code>) — в том числе с любым выключенным ускорением. Оно же было у штатного v8unpack и у 1.0.0 в контрольном замере 28.09.</p>
+<p>Для сравнения — контрольный замер 28.09 (машина тоже загружена, защита в реальном времени включена): штатный <code>v8unpack -E</code> с параллельным пулом — медиана 33,46 с CPU всего дерева процессов и 218 МБ памяти, 1.0.0 — 23,51 с и 36 МБ (CPU −30%, память −84%).</p></div>
+
+<h2 id="ablation">4. Вклад каждого ускорения</h2>
+<div id="ablBody"><p>Та же серия: 2.0.0, в которой переменной <code>V8UNPACK_DISABLE</code> выключено ровно одно ускорение. Насколько растёт CPU без него — столько оно и даёт на этом файле. Вклады не складываются: ускорения делят одни и те же проходы.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Вариант</th><th class="num">CPU, с</th><th class="num">к 2.0.0</th><th class="num">Бинарник</th><th class="num">Контейнеры</th><th class="num">Разбор</th><th class="num">Организатор</th></tr></thead>
+  <tbody>
+    <tr><td style="white-space:nowrap">2.0.0 со всеми</td><td class="num">6,62</td><td class="num">—</td><td class="num">0,47</td><td class="num">0,89</td><td class="num">3,53</td><td class="num">0,63</td></tr>
+    <tr><td style="white-space:nowrap">без <code>inplace</code></td><td class="num">9,41</td><td class="num">+42%</td><td class="num">0,50</td><td class="num">0,93</td><td class="num">3,50</td><td class="num">3,28</td></tr><tr><td style="white-space:nowrap">без <code>fastbrace</code></td><td class="num">8,70</td><td class="num">+31%</td><td class="num">0,53</td><td class="num">1,09</td><td class="num">5,67</td><td class="num">0,69</td></tr><tr><td style="white-space:nowrap">без <code>jsonwrite</code></td><td class="num">7,56</td><td class="num">+14%</td><td class="num">0,45</td><td class="num">0,92</td><td class="num">4,76</td><td class="num">0,75</td></tr><tr><td style="white-space:nowrap">без <code>io</code></td><td class="num">6,97</td><td class="num">+5%</td><td class="num">0,56</td><td class="num">1,30</td><td class="num">4,05</td><td class="num">0,70</td></tr><tr><td style="white-space:nowrap">без <code>accum</code></td><td class="num">6,64</td><td class="num">+0%</td><td class="num">0,39</td><td class="num">0,86</td><td class="num">3,56</td><td class="num">0,70</td></tr>
+    <tr><td>1.0.0</td><td class="num">20,98</td><td class="num">+217%</td><td class="num">0,49</td><td class="num">1,15</td><td class="num">7,92</td><td class="num">10,36</td></tr>
+  </tbody>
+</table></div>
+<div class="chart" id="chAbl"></div>
+<p class="caption">На расширении 3 МБ мало длинных модулей, поэтому <code>accum</code> здесь почти не виден. Его эффект — на крупных конфигурациях: модуль 3,2 МБ раскладывался 30 с, теперь 0,08 с.</p></div>
+
+<h2 id="ut">5. УТ 11.5 целиком</h2>
+<p>Полная распаковка <code>1Cv8-ут-11.5.27.93-.cf</code> (883 МБ). 1.0.0 — прогон 28.09 по журналу <code>ut_err.log</code>. Парный повтор 1.0.0 не делался: версия копирует результат, и в пике на D: не хватило бы места рядом с тремя временными каталогами. Условия прогонов разные, поэтому это ориентир, а не контрольный опыт.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Этап (по часам)</th><th class="num">1.0.0, 28.09</th><th class="num">2.0.0, 29.09</th><th class="num">2.0.0, CPU</th></tr></thead>
+  <tbody>
+    <tr><td>Распаковка бинарника</td><td class="num">0:35</td><td class="num">1:49</td><td class="num">46 с</td></tr>
+    <tr><td>Распаковка вложенных контейнеров</td><td class="num">6:23</td><td class="num">1:35</td><td class="num">70 с</td></tr>
+    <tr><td>Разбор вложенных объектов</td><td class="num">10:27</td><td class="num">4:31</td><td class="num">205 с</td></tr>
+    <tr><td>Организатор («Организуем код»)</td><td class="num">29:01</td><td class="num">0:31</td><td class="num">28 с</td></tr>
+    <tr><td><b>Всего</b></td><td class="num"><b>46:30</b></td><td class="num"><b>8:25</b></td><td class="num"><b>365 с</b></td></tr>
+  </tbody>
+</table></div>
+<p class="caption">2.0.0: user 171 с, kernel 194 с; пик памяти 947 МБ. Код первого этапа в 2.0.0 не менялся. Он медленнее, вероятно, из-за фона: параллельно шла сверка тяжёлых форм исходным разборщиком (537 с CPU) и чужие процессы.</p>
+<p>Главный выигрыш — организатор. В 1.0.0 он обходил 68 тыс. файлов <code>decode_stage_3</code>, копировал каждый и заново писал модули и формы. В 2.0.0 каталог переносится одним переименованием, модули и формы без областей <code>include</code> не перезаписываются.</p>
+
+<h2 id="parse">6. Разбор: тяжёлые формы и выборки</h2>
+<p>CPU разбора одного файла (<code>brace_file_read</code>), лучший из трёх прогонов. Исходный разборщик — один прогон, <code>v8unpack_fastparse_check.py</code>.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Форма УНФ</th><th class="num">Размер</th><th class="num">исходный v8unpack</th><th class="num">1.0.0</th><th class="num">2.0.0</th></tr></thead>
+  <tbody>
+    <tr><td><code>be7b6111</code></td><td class="num">2018 КБ</td><td class="num">537,1 с</td><td class="num">0,531 с</td><td class="num">0,062 с</td></tr>
+    <tr><td><code>c7d3fbee</code></td><td class="num">1954 КБ</td><td class="num">12,2 с</td><td class="num">0,656 с</td><td class="num">0,141 с</td></tr>
+    <tr><td><code>303f4ede</code></td><td class="num">1495 КБ</td><td class="num">10,2 с</td><td class="num">0,219 с</td><td class="num">0,078 с</td></tr>
+  </tbody>
+</table></div>
+<p>Цифра «385 с → 0,34 с» из гайда 1.2.0 была временем по часам на другой нагрузке. Перемер по CPU: 537 с → 0,53 с (1.0.0) → 0,06 с (2.0.0), результат во всех трёх случаях тот же.</p>
+<p>Разбор через <code>json.loads</code> на выборках <code>decode_stage_1</code> (эталон — цепочка 1.0.0 с прототипами 2 и 3):</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Выборка</th><th class="num">Файлов</th><th class="num">CPU эталон</th><th class="num">CPU 2.0.0</th><th class="num">Ускорение</th></tr></thead>
+  <tbody>
+    <tr><td>УНФ, распаковка 1: 30 крупнейших + 3000 случайных</td><td class="num">2955, 79 МБ</td><td class="num">11,06 с</td><td class="num">3,91 с</td><td class="num">2,8×</td></tr>
+    <tr><td>УНФ, распаковка 2: 100 крупнейших + 8000 случайных</td><td class="num">7924, 361 МБ</td><td class="num">135,9 с</td><td class="num">24,6 с</td><td class="num">5,5×</td></tr>
+    <tr><td>— из выборки 1: формы с base64</td><td class="num">450</td><td class="num">6,00 с</td><td class="num">2,34 с</td><td class="num">2,6×</td></tr>
+    <tr><td>— из выборки 1: обычные скобочные файлы</td><td class="num">1757</td><td class="num">1,62 с</td><td class="num">1,16 с</td><td class="num">1,4×</td></tr>
+    <tr><td>— из выборки 1: текстовые файлы</td><td class="num">628</td><td class="num">2,45 с</td><td class="num">0,27 с</td><td class="num">9,2×</td></tr>
+  </tbody>
+</table></div>
+<p class="caption">Разбивка по видам снята до того, как экранирование стало условным. После этого весь разбор выборки 1 ускорился с 1,6× до 2,8×.</p>
+
+<h2 id="json">7. Запись JSON</h2>
+<p>4060 JSON-файлов выгрузки УТ 11.5 (60 крупнейших + 4000 случайных, 216 МБ), лучший из трёх прогонов.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Способ</th><th class="num">Только строка</th><th class="num">Строка + запись в файл</th></tr></thead>
+  <tbody>
+    <tr><td><code>json.dumps</code> / <code>json.dump(indent=2, ensure_ascii=False)</code> — штатно</td><td class="num">11,36 с</td><td class="num">19,89 с</td></tr>
+    <tr><td>свой сериализатор (<code>v8unpack_jsonwrite.dumps</code>) + одна запись</td><td class="num">4,22 с</td><td class="num">7,62 с</td></tr>
+  </tbody>
+</table></div>
+<p>Строки совпали со штатными во всех 4060 случаях. Прототип 28.09 (<code>json.dumps</code> одной записью) давал только −13%: основное время уходило не на запись, а на кодирование на Python.</p>
+
+<h2 id="av">8. Антивирус и время ядра</h2>
+<p>Около половины CPU распаковки — время ядра Windows. В отчёте 28.09 его приписывали проверке антивирусом. Проверка 29.09 это не подтвердила:</p>
+<ul>
+  <li><b>Защита в реальном времени была выключена</b>, а доля ядра у 1.0.0 осталась прежней — 41–46% против 43–47% при включённой защите.</li>
+  <li><b>Исключённая и обычная папка на одном диске дали одинаковый результат.</b> По 3 раунда: 1.0.0 — 26,45 и 26,72 с CPU, прототип 2.0.0 (все ускорения, кроме пропуска перезаписи) — 9,19 и 8,97 с. Разница в пределах шума.</li>
+  <li>Процесс антивируса MsMpEng за прогон CPU не набирает.</li>
+</ul>
+<p>Проверку файлов антивирус делает в своём процессе, а распаковка её только ждёт. Это видно по времени по часам и CPU антивируса, а не по CPU распаковки. Время ядра — сами открытия, записи и закрытия файлов, и 2.0.0 снижает его только тем, что делает этих операций меньше. Исключения антивируса для temp и результата полезны, когда защита в реальном времени включена: они снимают ожидание проверки файлов.</p>
+
+<h2 id="build">9. Сборка</h2>
+<p>Сборка <code>.cfe</code> из распакованного дерева (<code>v8unpack.build</code>), 3 раунда: CPU 12,16 → 10,84 с (−11%) только от записи JSON и кэша каталогов; этап «Собираем код» −27%. Побайтно сверить собранный файл нельзя: v8unpack пишет в файл <code>versions</code> новые <code>uuid4()</code> при каждой сборке, размер <code>.cfe</code> от прогона к прогону плавает на десятки байт. Размер куска zlib (512 Б против 1 МБ) не меняет ни байты, ни CPU заметно.</p>
+<p>Под профилировщиком cProfile сборка показывала 24% собственного времени в <code>OrganizerCode.pack_file</code>. Это артефакт: в Python 3.11 под профилировщиком строка не расширяется на месте, и склейка <code>s += ...</code> становится квадратичной. 80 тыс. склеек — 1,4 с без профилировщика и 80 с под ним. Без профилировщика тот же цикл на всех 287 модулях идёт 0,28 с.</p>
+
+<h2 id="gaps">10. Что не проверено</h2>
+<ul>
+  <li><b>Свободная машина.</b> Все замеры шли на фоне 60–100% чужой нагрузки. CPU от этого тоже плывёт: 1.0.0 на одном и том же файле — 17,8–28,6 с в разных сериях. Выводы делаются по медианам внутри одной серии с чередованием.</li>
+  <li><b>УТ 11.5 на 1.0.0 заново.</b> «Было» — журнал 28.09, не парный прогон.</li>
+  <li><b>Ограниченный параллелизм.</b> Не проверялся: на загруженной машине он не даёт выигрыша (замер 28.09: +24% CPU при 4 процессах).</li>
+  <li><b>Антивирус.</b> Эффект исключений по времени не измерен: защита в реальном времени выключена.</li>
+  <li><b>v8unpack 1.2.6.</b> 2.0.0 проверена только на 1.2.13.</li>
+</ul>
+
+<h2 id="repro">11. Как воспроизвести</h2>
+<pre><code>rem сверка разбора с исходным v8unpack
+python tools\v8unpack_fastparse_check.py "&lt;TEMP&gt;\tmpXXXX\decode_stage_1" 400
+
+rem парный замер с чередованием: 1.0.0, 2.0.0 и 2.0.0 без каждого ускорения
+python bench\scripts\bench_pair.py &lt;файл.cfe&gt; &lt;рабочий_каталог&gt; 5 summary.json ^
+    v1.0.0=releases\v8unpack-accel\v1.0.0\tools v2.0.0=tools ^
+    без_fastbrace=tools:fastbrace без_inplace=tools:inplace без_jsonwrite=tools:jsonwrite ^
+    без_io=tools:io без_accum=tools:accum
+
+rem полная распаковка и сверка с эталонным деревом
+python bench\scripts\run_variant.py tools &lt;файл.cf&gt; &lt;out&gt; &lt;temp&gt; result.json
+python bench\scripts\compare_tree.py result.json &lt;эталонный_каталог&gt; compare.json
+
+rem поставки: хеши, патчи поверх 1.0.0, рабочая копия
+python releases\v8unpack-accel\verify_release.py --replay --working</code></pre>
+
+<footer>Данные: <code>releases/v8unpack-accel/v2.0.0/evidence/</code> — итоги прогонов, сверки, журналы проверок. Скрипты замеров и сверки — <code>bench/scripts/</code>. Статья и отчёт распространяются по лицензии CC BY 4.0.</footer>
+
+</div>
+
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+
+(function () {
+  var root = document.documentElement;
+  var btn = document.getElementById('themeBtn');
+  var saved = null;
+  try { saved = localStorage.getItem('v8unpack-page-theme'); } catch (e) {}
+  if (saved === 'dark' || saved === 'light') root.setAttribute('data-theme', saved);
+  btn.addEventListener('click', function () {
+    var cur = root.getAttribute('data-theme');
+    if (!cur) cur = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var next = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('v8unpack-page-theme', next); } catch (e) {}
+  });
+
+  var tip = document.getElementById('tip');
+  function fmt(v) { return v.toFixed(v < 0.1 ? 3 : 2).replace('.', ','); }
+  function showTip(e, html) {
+    tip.innerHTML = html; tip.style.opacity = 1;
+    var x = e.clientX + 14, y = e.clientY + 14;
+    var r = tip.getBoundingClientRect();
+    if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+    if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  }
+  function hideTip() { tip.style.opacity = 0; }
+
+  function barChart(id, cfg) {
+    var el = document.getElementById(id);
+    var max = cfg.max;
+    var h = '<h4>' + cfg.title + '</h4><p class="sub">' + cfg.sub + '</p>';
+    if (cfg.series.length > 1) {  // один ряд называет заголовок, легенда не нужна
+      h += '<div class="legend">';
+      cfg.series.forEach(function (s) { h += '<span style="--c:var(' + s.color + ')">' + s.name + '</span>'; });
+      h += '</div>';
+    }
+    h += '<div class="rows">';
+    cfg.cats.forEach(function (c, i) {
+      h += '<div class="row"><div class="cat">' + c + '</div><div class="track">';
+      cfg.series.forEach(function (s) {
+        var v = s.values[i];
+        h += '<div class="bar-line"><div class="bar-hit" data-cat="' + c + '" data-s="' + s.name + '" data-v="' + v + '">' +
+             '<div class="bar" style="--c:var(' + s.color + ');width:' + (v / max * 100) + '%"></div>' +
+             '<span class="bar-val">' + Math.round(v * 100) + '%</span></div></div>';
+      });
+      h += '</div></div>';
+    });
+    h += '</div><div class="axis"><div></div><div class="ticks">';
+    cfg.ticks.forEach(function (t) { h += '<span style="left:' + (t / max * 100) + '%">' + (t * 100).toFixed(0) + '%</span>'; });
+    h += '</div></div>';
+    h += '<details class="data"><summary>Данные графика</summary><div class="table-wrap"><table><thead><tr><th>Сценарий</th>';
+    cfg.series.forEach(function (s) { h += '<th class="num">' + s.name + '</th>'; });
+    h += '</tr></thead><tbody>';
+    cfg.cats.forEach(function (c, i) {
+      h += '<tr><td>' + c + '</td>';
+      cfg.series.forEach(function (s) { h += '<td class="num">×' + fmt(s.values[i]) + '</td>'; });
+      h += '</tr>';
+    });
+    h += '</tbody></table></div></details>';
+    el.innerHTML = h;
+
+    var rows = el.querySelector('.rows');
+    var track = el.querySelector('.track');
+    function placeRef() {
+      var old = rows.querySelector('.ref'); if (old) old.remove();
+      var tr = track.getBoundingClientRect(), rr = rows.getBoundingClientRect();
+      var ref = document.createElement('div');
+      ref.className = 'ref';
+      ref.style.left = (tr.left - rr.left + tr.width * (cfg.ref / max)) + 'px';
+      ref.innerHTML = '<span class="ref-label">' + cfg.refLabel + '</span>';
+      rows.appendChild(ref);
+    }
+    placeRef();
+    addEventListener('resize', placeRef);
+
+    el.querySelectorAll('.bar-hit').forEach(function (b) {
+      b.addEventListener('mousemove', function (e) {
+        var v = parseFloat(b.dataset.v);
+        showTip(e, '<b>' + b.dataset.cat + '</b><br>' + b.dataset.s + ': ×' + fmt(v) + ', ' +
+          (v < 1 ? 'на ' + Math.round((1 - v) * 100) + '% меньше' : 'на ' + Math.round((v - 1) * 100) + '% больше') + ' ' + (cfg.tipBase || ''));
+      });
+      b.addEventListener('mouseleave', hideTip);
+    });
+  }
+
+  barChart('chCfe', {"title": "CPU 2.0.0 относительно 1.0.0", "sub": "медиана 5 раундов с чередованием; ниже 100% — быстрее", "max": 1.25, "ticks": [0, 0.25, 0.5, 0.75, 1], "ref": 1, "refLabel": "1.0.0 = 100%", "tipBase": "чем у 1.0.0", "cats": ["Прогон целиком", "Распаковка бинарника", "Вложенные контейнеры", "Разбор объектов", "Организатор"], "series": [{"name": "2.0.0", "color": "--series-1", "values": [0.3155, 0.9592, 0.7739, 0.4457, 0.0608]}]});
+  barChart('chAbl', {"title": "CPU 2.0.0 без одного ускорения", "sub": "относительно 2.0.0 со всеми ускорениями; медиана 5 раундов; выше 100% — это ускорение что-то даёт", "max": 1.5636500000000002, "ticks": [0, 0.5, 1, 1.5], "ref": 1, "refLabel": "2.0.0 = 100%", "tipBase": "чем у 2.0.0 со всеми", "cats": ["без inplace", "без fastbrace", "без jsonwrite", "без io", "без accum"], "series": [{"name": "CPU без ускорения", "color": "--series-2", "values": [1.4215, 1.3142, 1.142, 1.0529, 1.003]}]});
+})();
+
+</script>
+</body>
+</html>
