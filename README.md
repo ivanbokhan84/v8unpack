@@ -1,3 +1,8 @@
+> **VANTEAM fork.** Форк [saby-integration/v8unpack](https://github.com/saby-integration/v8unpack)
+> на базе 1.2.13, рабочая ветка `vanteam-accel-2.0`. Пакет v8unpack не изменён: ускорения и исправления
+> распаковки — обёртки v8unpack-accel 2.0.0 в [vanteam/](vanteam/README.md), страница проекта с замерами —
+> [ivanbokhan84.github.io/v8unpack](https://ivanbokhan84.github.io/v8unpack/). Ниже — оригинальный README проекта.
+
 # saby v8unpack
 
 [![img lib ver](https://img.shields.io/pypi/v/v8unpack.svg "")](https://pypi.python.org/pypi/v8unpack)
