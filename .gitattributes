@@ -1,0 +1,5 @@
+# Файлы форка хранятся побайтно, без преобразования переводов строк: их sha256 записаны в манифестах поставок
+vanteam/** -text
+docs/index.html -text
+docs/cover.png binary
+docs/vanteam/** -text
